@@ -12,16 +12,14 @@
     Alzatore: 'AL', 'Prima banda': 'B1', 'Seconda banda': 'B2', 'Primo centro': 'C1', 'Secondo centro': 'C2', Opposto: 'OP', Libero: 'L',
     Palleggiatore: 'AL', Schiacciatore: 'B', Centrale: 'C', // vecchi nomi
   };
-  const DEFAULT_ROSTER = [
-    { number: '7', name: 'Rossi', role: 'Prima banda' },
-    { number: '10', name: 'Bianchi', role: 'Primo centro' },
-    { number: '1', name: 'Verdi', role: 'Alzatore' },
-    { number: '9', name: 'Neri', role: 'Opposto' },
-    { number: '4', name: 'Russo', role: 'Seconda banda' },
-    { number: '5', name: 'Gallo', role: 'Libero' },
-    { number: '6', name: 'Costa', role: 'Libero' },
-    { number: '11', name: 'Greco', role: 'Secondo centro' },
-  ];
+  // Nessuna squadra predefinita: la rosa parte vuota. A richiesta si carica un
+  // esempio con nomi segnaposto (non persone reali), da sostituire con i propri giocatori.
+  const EXAMPLE_ROSTER = [
+    ['1', 'Alzatore'], ['2', 'Banda 1'], ['3', 'Banda 2'], ['4', 'Centro 1'], ['5', 'Centro 2'],
+    ['6', 'Opposto'], ['7', 'Libero'],
+  ].map(([number, r]) => ({ number, name: 'Esempio ' + r, role: { 'Banda 1': 'Prima banda', 'Banda 2': 'Seconda banda', 'Centro 1': 'Primo centro', 'Centro 2': 'Secondo centro' }[r] || r, example: true }));
+  // Vecchia rosa predefinita delle prime versioni: se è rimasta tale e quale, non la consideriamo una rosa vera.
+  const OLD_DEFAULT = ['7 Rossi', '10 Bianchi', '1 Verdi', '9 Neri', '4 Russo', '5 Gallo', '6 Costa', '11 Greco'];
   // Converte i vecchi ruoli (Palleggiatore/Centrale/Schiacciatore) nei nuovi.
   function migrateRoles(list) {
     let c = 0, b = 0;
@@ -50,7 +48,11 @@
   };
   let saveFailed = false;
 
-  const loadRoster = () => migrateRoles(store.get('scout.roster', DEFAULT_ROSTER.map(p => Object.assign({}, p))));
+  const loadRoster = () => {
+    const r = store.get('scout.roster', []);
+    if (r.length && r.every(p => OLD_DEFAULT.includes(p.number + ' ' + p.name))) return [];
+    return migrateRoles(r);
+  };
   const saveRoster = r => store.set('scout.roster', r);
   const listMatches = () => store.get('scout.matches', []);
   const loadMatch = id => { const m = store.get('scout.match.' + id, null); if (m) migrateRoles(m.roster); return m; };
@@ -109,6 +111,8 @@
   function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms || 15); } catch (e) { /* niente */ } }
 
   function player(num) { return match.roster.find(p => p.number === num); }
+  // Ruolo in questo momento della partita (dopo un cambio: quello di chi è uscito, fino a fine set).
+  function roleNow(num) { return st ? E.roleOf(match, num, st) : ((player(num) || {}).role || ''); }
   function playerLabel(num) { const p = player(num); return p ? `#${p.number} ${p.name}` : `#${num}`; }
   function oppPlayerId(pos) { return st.oppMode === 'avanzata' ? st.oppLineup[pos] : pos; }
   function oppLabel(id) { return st.oppMode === 'avanzata' || !/^P\d$/.test(id) ? `#${id}` : `Zona ${id}`; }
@@ -127,7 +131,7 @@
       const team = st.oppMode === 'skip' && st.turn === 'avv' ? 'noi' : st.turn;
       if (team === 'noi' && E.suggestFund(st, 'noi') === 'E') {
         const eff = E.effectiveLineup(match, st);
-        const pos = E.POS.find(x => { const p = player(eff[x]); return p && E.isSetter(p.role); });
+        const pos = E.POS.find(x => E.isSetter(roleNow(eff[x])));
         if (pos && st.lastKey !== 'noi_' + pos) ui.sel = { team: 'noi', pos };
       }
     }
@@ -229,11 +233,41 @@
     const roster = loadRoster();
     const matches = listMatches();
     const nm = ui.newMatch || (ui.newMatch = { opponent: '', date: today(), oppMode: 'semplificata', format: '5' });
-    return `
-      <div class="topbar"><h1>Scout Volley</h1></div>
-      <div class="page">
+    const chk = rosterCheck(roster);
+    const ready = chk.ok;
+    const hasExample = roster.some(p => p.example);
+
+    const guide = `
+      <details class="card guide" ${matches.length ? '' : 'open'}>
+        <summary><h2>Come si usa</h2><span class="muted">tocca per aprire/chiudere</span></summary>
+        <ol class="steps">
+          <li class="${ready ? 'done' : 'cur'}"><b>Inserisci la tua rosa</b> — maglia, nome e ruolo di ogni giocatore (si fa una volta sola). Servono almeno 1 alzatore, 1 opposto, 2 bande e 2 centri.</li>
+          <li class="${ready ? 'cur' : ''}"><b>Crea la partita</b> — scrivi l'avversario e la formula.</li>
+          <li><b>Formazione</b> — tocca dove parte l'alzatore: il resto si compone da solo.</li>
+          <li><b>Scout</b> — per ogni tocco: <b>chi</b> ha giocato la palla, poi <b>com'è andata</b>. Il punteggio, le rotazioni e il libero vanno avanti da soli.</li>
+          <li><b>Fine partita</b> — statistiche ed Excel; scarica sempre il backup.</li>
+        </ol>
+      </details>`;
+
+    const rosterCard = `
         <div class="card">
-          <h2>Nuova partita</h2>
+          <h2>${ready ? 'La tua squadra' : '1 · La tua squadra'}</h2>
+          <div class="muted" style="margin-bottom:8px">${roster.length
+            ? 'Usata per tutte le nuove partite. Il ruolo serve per comporre la formazione da sola e per far entrare il libero al posto dei centri.'
+            : 'Ancora nessun giocatore. Aggiungi i tuoi giocatori qui sotto (maglia, nome, ruolo): il ruolo proposto è quello che manca.'}</div>
+          ${hasExample ? '<div class="hint">Questa è una <b>rosa di esempio</b> per provare l\'app: non sono giocatori veri. Sostituiscila con i tuoi giocatori.</div>' : ''}
+          ${rosterCheckHtml(chk)}
+          ${rosterEditor(roster, 'roster')}
+          <div class="row" style="margin-top:10px">
+            ${roster.length ? '' : '<button class="btn grow" data-a="roster-example">Prova con una rosa di esempio</button>'}
+            ${hasExample ? '<button class="btn grow" data-a="roster-clear-example">Togli i giocatori di esempio</button>' : ''}
+          </div>
+        </div>`;
+
+    const newCard = `
+        <div class="card">
+          <h2>${ready ? '' : '2 · '}Nuova partita</h2>
+          ${ready ? '' : `<div class="hint">Per iniziare servono almeno 1 alzatore, 1 opposto, 2 bande e 2 centri nella squadra. Mancano: <b>${esc(chk.missing.join(', '))}</b>.</div>`}
           <div class="form-grid">
             <label class="full">Avversario<input data-c="nm.opponent" value="${esc(nm.opponent)}" placeholder="Nome squadra avversaria" autocomplete="off"></label>
             <label>Data<input type="date" data-c="nm.date" value="${esc(nm.date)}"></label>
@@ -244,14 +278,15 @@
               </select>
             </label>
             <div class="full">
-              <div class="muted" style="margin-bottom:4px">Avversari: come registrarli</div>
+              <div class="muted" style="margin-bottom:4px">Avversari: quanto li vuoi registrare?</div>
               ${segOppMode(nm.oppMode, 'nm-mode')}
               <div class="muted" style="margin-top:6px">${modeHelp(nm.oppMode)}</div>
             </div>
           </div>
-          <div style="margin-top:12px"><button class="btn primary block" data-a="create-match">Crea partita e imposta il 1° set</button></div>
-        </div>
+          <div style="margin-top:12px"><button class="btn primary block" data-a="create-match" ${ready ? '' : 'disabled'}>Crea partita e imposta il 1° set</button></div>
+        </div>`;
 
+    const savedCard = `
         <div class="card">
           <h2>Partite salvate</h2>
           ${matches.length ? matches.map(m => `
@@ -268,14 +303,13 @@
               Importa backup (.json)<input type="file" accept=".json,application/json" data-c="import" style="display:none">
             </label>
           </div>
-        </div>
+        </div>`;
 
-        <div class="card">
-          <h2>Rosa della squadra</h2>
-          <div class="muted" style="margin-bottom:8px">Usata per le nuove partite. Il ruolo serve per il libero automatico (entra al posto dei centri) e per il nome delle rotazioni (posizione dell'alzatore).</div>
-          ${rosterEditor(roster, 'roster')}
-        </div>
-
+    return `
+      <div class="topbar"><h1>Scout Volley</h1></div>
+      <div class="page">
+        ${guide}
+        ${ready ? newCard + savedCard + rosterCard : rosterCard + newCard + savedCard}
         <div class="muted" style="text-align:center">
           I dati restano su questo dispositivo. Esporta un backup dopo ogni partita.<br>
           Per usarla senza internet: aprila una volta e aggiungila alla schermata Home.
@@ -296,7 +330,40 @@
       `<button class="${cur === m ? 'on' : ''}" data-a="${action}" data-mode="${m}">${MODE_LABEL[m]}</button>`).join('')}</div>`;
   }
 
+  // Ruoli minimi per iniziare una partita (5-1): 1 alzatore, 1 opposto, 2 bande, 2 centri.
+  // Il libero è facoltativo. Le bande e i centri contano insieme (prima + seconda).
+  const ROLE_NEEDS = [
+    { fam: 'r-al', label: 'Alzatore', one: 'alzatore', many: 'alzatori', need: 1, roles: ['Alzatore'] },
+    { fam: 'r-op', label: 'Opposto', one: 'opposto', many: 'opposti', need: 1, roles: ['Opposto'] },
+    { fam: 'r-b', label: 'Bande', one: 'banda', many: 'bande', need: 2, roles: ['Prima banda', 'Seconda banda'] },
+    { fam: 'r-c', label: 'Centri', one: 'centro', many: 'centri', need: 2, roles: ['Primo centro', 'Secondo centro'] },
+  ];
+  function rosterCheck(roster) {
+    const items = ROLE_NEEDS.map(n => {
+      const have = roster.filter(p => roleClass(p.role) === n.fam).length;
+      // ruolo da proporre: quello della coppia che manca ancora (es. Seconda banda se c'è già la prima)
+      const next = n.roles.find(r => !roster.some(p => p.role === r)) || n.roles[n.roles.length - 1];
+      return Object.assign({ have, ok: have >= n.need, next }, n);
+    });
+    const libs = roster.filter(p => E.isLibero(p.role)).length;
+    const missing = items.filter(i => !i.ok).map(i => `${i.need - i.have} ${i.need - i.have === 1 ? i.one : i.many}`);
+    return { items, libs, ok: items.every(i => i.ok), missing, nextRole: (items.find(i => !i.ok) || {}).next };
+  }
+  function rosterCheckHtml(chk) {
+    const chip = (cls, ok, text) => `<span class="need ${ok ? 'ok' : 'ko'}"><i class="role ${cls}"></i>${text}</span>`;
+    return `<div class="needs">
+      <div class="needs-title">${chk.ok ? '✓ Ruoli completi: puoi creare la partita' : 'Ruoli che servono per iniziare una partita'}</div>
+      <div class="needs-row">
+        ${chk.items.map(i => chip(i.fam, i.ok, `${i.ok ? '✓' : '✗'} ${i.label} <b>${i.have}/${i.need}</b>`)).join('')}
+        ${chip('r-l', true, `Libero <b>${chk.libs}</b> <span class="muted">(facoltativo)</span>`)}
+      </div>
+      ${chk.ok ? '' : `<div class="needs-miss">Mancano: <b>${esc(chk.missing.join(', '))}</b></div>`}
+    </div>`;
+  }
+
   function rosterEditor(roster, scope) {
+    const chk = rosterCheck(roster);
+    const defRole = chk.nextRole || 'Libero';
     const sorted = roster.slice().sort((a, b) => (+a.number || 0) - (+b.number || 0));
     return `
       ${sorted.map(p => `
@@ -306,9 +373,9 @@
           <button class="btn" data-a="roster-del" data-scope="${scope}" data-num="${esc(p.number)}" aria-label="Rimuovi">✕</button>
         </div>`).join('')}
       <div class="row" style="margin-top:10px">
-        <input id="rp-num-${scope}" placeholder="N°" inputmode="numeric" style="width:70px;flex:none">
-        <input id="rp-name-${scope}" placeholder="Nome" class="grow" style="width:auto;flex:1">
-        <select id="rp-role-${scope}" style="width:auto;flex:1">${ROLES.map(r => `<option>${r}</option>`).join('')}</select>
+        <input id="rp-num-${scope}" placeholder="Maglia" inputmode="numeric" style="width:70px;flex:none">
+        <input id="rp-name-${scope}" placeholder="Cognome o nome" class="grow" style="width:auto;flex:1">
+        <select id="rp-role-${scope}" style="width:auto;flex:1">${ROLES.map(r => `<option value="${r}" ${r === defRole ? 'selected' : ''}>${r}${chk.items.some(i => !i.ok && i.roles.includes(r)) ? ' — manca' : ''}</option>`).join('')}</select>
         <button class="btn primary" data-a="roster-add" data-scope="${scope}">Aggiungi</button>
       </div>`;
   }
@@ -325,7 +392,8 @@
   function createMatch() {
     const nm = ui.newMatch;
     const roster = loadRoster();
-    if (roster.length < 6) { toast('Servono almeno 6 giocatori nella rosa', true); return; }
+    const chk = rosterCheck(roster);
+    if (!chk.ok) { toast('Mancano nella rosa: ' + chk.missing.join(', '), true); return; }
     match = {
       id: uid(),
       version: 1,
@@ -438,13 +506,14 @@
           <h2>Formazione — Set ${n}</h2>
           <div class="setup-grid">
             <div>
-              <div class="muted" style="margin-bottom:8px">Tocca la posizione di partenza dell'<b>alzatore</b>: la formazione si compone da sola.</div>
+              <div class="stepline"><span class="stepn">1</span>Tocca la casella dove parte l'<b>alzatore</b>: gli altri si mettono da soli.</div>
               <div class="net-label">RETE</div>
               <div class="rot-grid">${['P4', 'P3', 'P2', 'P5', 'P6', 'P1'].map(rotBtn).join('')}</div>
               <div class="muted" style="margin-top:8px">Alzatore in ${d.setterPos} · rotazione ${d.setterPos}</div>
               ${draftBenchHtml(d)}
             </div>
             <div>
+              <div class="stepline"><span class="stepn">2</span>Controlla chi gioca in ogni ruolo (cambia dal menu se serve).</div>
               <div class="pair">${slotSel('AL')}</div>
               <div class="pair">${slotSel('OP')}</div>
               <div class="pair">${slotSel('B1')}${slotSel('B2')}<button class="btn swap" data-a="draft-swap" data-pair="B">Inverti bande</button></div>
@@ -469,6 +538,7 @@
         </div>` : ''}
 
         <div class="card">
+          <div class="stepline"><span class="stepn">3</span>Battuta e via.</div>
           ${serveCard}
           <div style="margin-top:14px"><button class="btn primary block" data-a="start-set">Inizia set ${n}</button></div>
           ${match.events.length ? '<div style="margin-top:8px"><button class="btn block" data-a="undo">Annulla ultima azione (torna al set precedente)</button></div>' : ''}
@@ -505,8 +575,10 @@
     E.POS.forEach(p => { opp[p] = (d.oppLineup[p] || '').trim() || p; });
     store.set('scout.lastSlots', d.slots);
     ui.draft = null;
+    const firstTime = !store.get('scout.seenHelp', false);
     commit({ type: 'setStart', lineup, slots: Object.assign({}, d.slots), setterPos: d.setterPos,
       oppLineup: opp, liberos: libs, liberoAuto: d.liberoAuto, serve: d.serve });
+    if (firstTime) { store.set('scout.seenHelp', true); openSheet(sheetHelp); }
     requestWakeLock();
   }
 
@@ -535,6 +607,7 @@
           <div class="center">
             <div class="score"><span class="s">${st.score.noi}</span><span class="sep">–</span><span class="s">${st.score.avv}</span></div>
             <div class="setinfo">SET ${st.setNum} · set ${st.setsWon.noi}–${st.setsWon.avv}${prev ? ' · ' + esc(prev) : ''}</div>
+            <button class="stats-btn" data-a="stats"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="9" width="3" height="6"/><rect x="6.5" y="5" width="3" height="10"/><rect x="12" y="1" width="3" height="14"/></svg>Statistiche</button>
           </div>
           <div class="side avv">
             <div class="tname">${esc(match.opponent)}</div>
@@ -553,10 +626,11 @@
           </div>
         </div>
         <div class="bottombar">
-          <button class="b-undo" data-a="undo">Annulla</button>
+          <button class="b-undo" data-a="undo">↶ Annulla</button>
           <button class="p-noi" data-a="point-sheet" data-team="noi">+1 NOI</button>
           <button class="p-avv" data-a="point-sheet" data-team="avv">+1 AVV</button>
           <button class="b-menu" data-a="menu">Menu</button>
+          <button class="b-help" data-a="help" aria-label="Guida">?</button>
         </div>
       </div>`;
   }
@@ -589,7 +663,8 @@
       return `<div class="prow">
         <span class="pnum">${esc(num)}</span>
         <span class="pname">${esc(p ? p.name : '?')}</span>
-        <span class="role ${p ? roleClass(p.role) : ''}">${esc(roleShort(p && p.role))}</span>
+        <span class="role ${p ? roleClass(roleNow(num)) : ''}">${esc(roleShort(p && roleNow(num)))}</span>
+        ${pos && p && st.roles[num] && st.roles[num] !== p.role ? `<span class="note" title="Ruolo preso con il cambio, fino a fine set">al posto di ${esc(roleShort(st.roles[num]))}</span>` : ''}
         ${extra || ''}</div>`;
     };
     const onCourt = order.map(pos => {
@@ -640,8 +715,9 @@
     const f = currentFund();
     if (ui.sel) {
       return `<div class="prompt pending">
-        <div class="grow"><span class="pq">${esc(selLabel(eff))} · ${E.FUNDS[f].name}</span>
-          <span class="pc">Com'è andata? Tocca l'esito qui sotto${ui.sel.team === 'noi' && st.phase === 'rally' ? ' (o un altro giocatore per cambiare)' : ''}</span></div>
+        <span class="step">2</span>
+        <div class="grow"><span class="pq">${esc(selLabel(eff))} · ${E.FUNDS[f].name}: com'è andata?</span>
+          <span class="pc">Tocca l'esito nei pulsanti sotto il campo${ui.sel.team === 'noi' && st.phase === 'rally' ? ' · oppure un altro giocatore se ha toccato qualcun altro' : ''}</span></div>
         <button data-a="cancel-sel" aria-label="Annulla scelta">✕</button></div>`;
     }
     const team = refTeam();
@@ -650,7 +726,7 @@
     else if (skip && st.turn === 'avv') ctx = 'Palla a loro · quando torna di qua tocca chi la gioca, o assegna il punto';
     else ctx = `Palla a ${teamLabel(st.turn)} · tocco ${Math.min(st.touches + 1, 3)} di 3`;
     const q = (team === 'avv' ? 'Avversari: ' : '') + ASK[f];
-    return `<div class="prompt ${team}"><div class="grow"><span class="pq">${esc(q)}</span><span class="pc">${esc(ctx)}</span></div></div>`;
+    return `<div class="prompt ${team}"><span class="step">1</span><div class="grow"><span class="pq">${esc(q)}</span><span class="pc">Tocca il giocatore sul campo · ${esc(ctx)}</span></div></div>`;
   }
 
   // Motivo per cui un giocatore non può essere scelto (testo breve) o null.
@@ -666,9 +742,10 @@
     let inner, cls = 'tile';
     if (team === 'noi') {
       const p = player(eff[pos]);
-      if (p && E.isLibero(p.role)) cls += ' libero';
-      if (p) cls += ' ' + roleClass(p.role);
-      inner = `<span class="num">${esc(eff[pos])}</span><span class="nm">${esc(p ? p.name : '?')}</span><span class="pos">${pos}${p ? ' · ' + roleShort(p.role) : ''}</span>`;
+      const r = roleNow(eff[pos]);
+      if (p && E.isLibero(r)) cls += ' libero';
+      if (p) cls += ' ' + roleClass(r);
+      inner = `<span class="num">${esc(eff[pos])}</span><span class="nm">${esc(p ? p.name : '?')}</span><span class="pos">${pos}${p ? ' · ' + roleShort(r) : ''}</span>`;
     } else {
       inner = st.oppMode === 'avanzata'
         ? `<span class="num">${esc(st.oppLineup[pos])}</span><span class="pos">${pos}</span>`
@@ -729,8 +806,9 @@
         <i class="fdot f-${f}"></i>${E.FUNDS[f].name}</button>`;
     }).join('');
     const btns = E.FUNDS[cur].grades.filter(g => !g.hidden).map(g =>
-      `<button class="${GRADE_CLASS[g.g]}" data-a="outcome" data-f="${cur}" data-g="${esc(g.g)}">${esc(g.label)}</button>`).join('');
+      `<button class="${GRADE_CLASS[g.g]}" data-a="outcome" data-f="${cur}" data-g="${esc(g.g)}">${esc(g.label)}${g.sub ? `<small>${esc(g.sub)}</small>` : ''}</button>`).join('');
     return `<div class="actions${ui.sel ? '' : ' waiting'}">
+      <div class="ahead">${ui.sel ? 'Com\'è andata?' : 'Prima tocca il giocatore, poi l\'esito'} <span class="muted">· fondamentale <i class="dot-sugg"></i> previsto, toccane un altro se serve</span></div>
       <div class="ftabs">${tabs}</div>
       <div class="obtns">${btns}</div></div>`;
   }
@@ -816,47 +894,81 @@
 
     return `
       <div class="topbar"><button class="btn ghost" data-a="back-match">‹ Partita</button><h1>Statistiche</h1></div>
-      <div class="page">
-        <div class="card">
+      <div class="page stats-page">
+        <div class="card stats-head">
+          <div class="sh-match"><span class="swatch"></span>NOI <span class="sh-vs">contro</span> ${esc(match.opponent)}</div>
+          <div class="sh-meta">${esc(fmtDate(match.date))} · ${esc(resultLine())}</div>
+          <div class="sh-scope">${esc(scopeTitle())}</div>
+          <div class="muted" style="margin:4px 0 10px">Scegli se vedere tutta la partita o un solo set:</div>
           <div class="seg" style="flex-wrap:wrap">${segBtns}</div>
         </div>
         <div class="card">
-          <h2>Generale squadra${ui.statsSet == null ? '' : ' · Set ' + ui.statsSet}</h2>
+          <h2>Riepilogo della squadra <span class="muted">· ${ui.statsSet == null ? 'tutta la partita' : 'set ' + ui.statsSet}</span></h2>
           ${S.general.map(g => `
             <div class="gen-group">${esc(g.group)}</div>
             <div class="gen">${g.items.map(i => `<div class="gen-item"><div class="v">${esc(i.pct ? fmtPct(i.value) : i.value)}</div><div class="l">${esc(i.label)}</div></div>`).join('')}</div>`).join('')}
         </div>
         <div class="card">
-          <h2>Giocatori</h2>
+          <h2>I nostri giocatori <span class="muted">· ${ui.statsSet == null ? 'tutta la partita' : 'set ' + ui.statsSet}</span></h2>
           <div class="tbl-wrap"><table class="stats">${statHead()}<tbody>${playerRows}${statRowHtml('Squadra', T, true)}</tbody></table></div>
-          <div class="muted" style="margin-top:8px">Ric+ = (# e +) / ricezioni · Eff. attacco = (punti − errori − murate) / attacchi · Eff. battuta = (ace − errori) / battute</div>
+          <div class="muted stat-legend">
+            <b>Eff</b> = efficienza: in battuta (ace − errori) / battute, in attacco (punti − errori − murati) / attacchi ·
+            <b>+ %</b> = percentuale di ricezioni (o difese) buone o migliori · <b>++ %</b> = ricezioni in testa all'alzatore.<br>
+            <b>Muro</b>: <b>Secchi</b> muro punto · <b>Normali</b> toccato, torna di là · <b>Rigiocate</b> tocco a muro, resta a noi ·
+            <b>Interd.</b> non tirano sul muro (sopra o altrove).
+          </div>
         </div>
         <div class="card">
-          <h2>Rotazioni</h2>
+          <h2>Rotazioni <span class="muted">· ${ui.statsSet == null ? 'tutta la partita' : 'set ' + ui.statsSet}</span></h2>
           <div class="muted" style="margin-bottom:6px">Rotazione = posizione del palleggiatore. Cambio palla = punti vinti in ricezione; Break = punti vinti in battuta.</div>
           <div class="tbl-wrap"><table class="stats">
             <thead><tr><th>Rot.</th><th class="grp">Cambio palla</th><th>%</th><th class="grp">Break</th><th>%</th></tr></thead>
             <tbody>${rotRows}</tbody></table></div>
         </div>
-        ${S.opp.length ? `<div class="card"><h2>Avversari</h2><div class="tbl-wrap"><table class="stats">${statHead()}<tbody>${oppRows}${statRowHtml('Squadra', S.avvTeam, true)}</tbody></table></div></div>` : ''}
+        ${S.opp.length ? `<div class="card"><h2>Avversari: ${esc(match.opponent)} <span class="muted">· ${ui.statsSet == null ? 'tutta la partita' : 'set ' + ui.statsSet}</span></h2><div class="tbl-wrap"><table class="stats">${statHead()}<tbody>${oppRows}${statRowHtml('Squadra', S.avvTeam, true)}</tbody></table></div></div>` : ''}
         <div class="card">${exportButtons()}</div>
       </div>`;
   }
 
+  // Testi del titolo delle statistiche: data, risultato, a cosa si riferiscono i numeri.
+  function fmtDate(d) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || '');
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : (d || '');
+  }
+  function resultLine() {
+    const live = st.phase === 'serve' || st.phase === 'rally' || st.phase === 'setOver';
+    const sets = st.setResults.map(r => `${r.noi}-${r.avv}`).join(', ');
+    let s = `Set ${st.setsWon.noi}-${st.setsWon.avv}${sets ? ' (' + sets + ')' : ''}`;
+    if (live) s += ` · set ${st.setNum} in corso ${st.score.noi}-${st.score.avv}`;
+    else if (st.phase === 'matchOver') s += ' · partita finita';
+    return s;
+  }
+  function scopeTitle() {
+    if (ui.statsSet == null) return 'Statistiche di tutta la partita';
+    const r = st.setResults.find(x => x.n === ui.statsSet);
+    if (r) return `Statistiche del set ${r.n} (finito ${r.noi}-${r.avv})`;
+    return `Statistiche del set ${ui.statsSet} (in corso ${st.score.noi}-${st.score.avv})`;
+  }
+
+  // Intestazione su due righe: sopra il fondamentale (Battuta, Ricezione, …), sotto le colonne.
   function statHead() {
-    return `<thead><tr><th class="l">Giocatore</th><th>Pti</th><th>Err</th>
-      <th class="grp">Batt</th><th>Ace</th><th>Err</th><th>Eff</th>
-      <th class="grp">Ric</th><th>Ric+</th><th>Ric#</th><th>Err</th>
-      <th class="grp">Att</th><th>Pti</th><th>Err</th><th>Mur</th><th>Eff</th>
-      <th class="grp">Muri</th><th class="grp">Dif</th><th>Dif+</th></tr></thead>`;
+    const g = (f, n, label) => `<th class="grp gh${f ? ' gh-' + f : ''}" colspan="${n}">${f ? `<i class="fdot f-${f}"></i>` : ''}${label}</th>`;
+    return `<thead>
+      <tr class="groups"><th class="l"></th>${g('', 2, 'Totale')}${g('B', 4, 'Battuta')}${g('R', 4, 'Ricezione')}${g('A', 5, 'Attacco')}${g('M', 4, 'Muro')}${g('D', 2, 'Difesa')}</tr>
+      <tr><th class="l">Giocatore</th><th class="grp" title="Punti fatti">Punti</th><th title="Errori">Errori</th>
+      <th class="grp" title="Battute totali">Tot</th><th>Ace</th><th>Err</th><th title="(ace − errori) / battute">Eff</th>
+      <th class="grp" title="Ricezioni totali">Tot</th><th title="++ e buone">+ %</th><th title="In testa all'alzatore">++ %</th><th>Err</th>
+      <th class="grp" title="Attacchi totali">Tot</th><th>Punti</th><th>Err</th><th title="Attacchi murati">Murati</th><th title="(punti − errori − murati) / attacchi">Eff</th>
+      <th class="grp" title="Muro secco: punto">Secchi</th><th title="Muro normale: torna di là">Normali</th><th title="Palla rigiocata: tocco a muro, resta a noi">Rigiocate</th><th title="Muro d'interdizione: non tirano sul muro">Interd.</th>
+      <th class="grp" title="Difese totali">Tot</th><th title="Perfette e buone">+ %</th></tr></thead>`;
   }
 
   function statRowHtml(label, s, tot) {
-    return `<tr class="${tot ? 'tot' : ''}"><td class="l">${label}</td><td>${s.points}</td><td>${s.errors}</td>
+    return `<tr class="${tot ? 'tot' : ''}"><td class="l">${label}</td><td class="grp">${s.points}</td><td>${s.errors}</td>
       <td class="grp">${s.serveTot}</td><td>${s.ace}</td><td>${s.serveErr}</td><td>${fmtPct(s.serveEff)}</td>
       <td class="grp">${s.recTot}</td><td>${fmtPct(s.recPos)}</td><td>${fmtPct(s.recPrf)}</td><td>${s.recErr}</td>
       <td class="grp">${s.attTot}</td><td>${s.kill}</td><td>${s.attErr}</td><td>${s.attBlk}</td><td>${fmtPct(s.attEff)}</td>
-      <td class="grp">${s.blkPts}</td><td class="grp">${s.defTot}</td><td>${fmtPct(s.defPos)}</td></tr>`;
+      <td class="grp">${s.blkPts}</td><td>${s.blkNorm}</td><td>${s.blkReplay}</td><td>${s.blkInt}</td><td class="grp">${s.defTot}</td><td>${fmtPct(s.defPos)}</td></tr>`;
   }
 
   /* ------------------------------ esporta ------------------------------ */
@@ -886,11 +998,11 @@
     const S = E.computeStats(match, st, null);
     const n = v => (v == null ? '' : v);
     const head = ['Giocatore', 'Ruolo', 'Punti', 'Errori', 'Battute', 'Ace', 'Err batt', 'Eff batt %',
-      'Ricezioni', 'Ric + %', 'Ric # %', 'Err ric', 'Attacchi', 'Punti att', 'Err att', 'Murati', 'Kill %', 'Eff att %',
-      'Muri punto', 'Tocchi muro', 'Difese', 'Dif + %', 'Err dif', 'Alzate', 'Err alz'];
+      'Ricezioni', 'Ric + %', 'Ric ++ %', 'Err ric', 'Attacchi', 'Punti att', 'Err att', 'Murati', 'Kill %', 'Eff att %',
+      'Muri secchi', 'Muri normali', 'Palle rigiocate', 'Muri interdizione', 'Err muro', 'Muri totali', 'Difese', 'Dif + %', 'Err dif', 'Alzate', 'Err alz'];
     const row = (label, role, s) => [label, role, s.points, s.errors, s.serveTot, s.ace, s.serveErr, n(s.serveEff),
       s.recTot, n(s.recPos), n(s.recPrf), s.recErr, s.attTot, s.kill, s.attErr, s.attBlk, n(s.killPct), n(s.attEff),
-      s.blkPts, s.blkTot, s.defTot, n(s.defPos), s.defErr, s.setTot, s.setErr];
+      s.blkPts, s.blkNorm, s.blkReplay, s.blkInt, s.blkErr, s.blkTot, s.defTot, n(s.defPos), s.defErr, s.setTot, s.setErr];
 
     const sheets = [];
     const riep = [['Voce', 'Valore'],
@@ -1030,6 +1142,38 @@
     };
   }
 
+  function sheetHelp() {
+    return `
+      <h2>Come si usa</h2>
+      <ol class="steps big">
+        <li><b>Leggi la barra colorata</b> sopra il campo: ti dice cosa serve adesso (es. <i>Chi ha ricevuto?</i>).</li>
+        <li><b>Tocca il giocatore</b> che ha giocato la palla: diventa giallo.</li>
+        <li><b>Tocca com'è andata</b> nei pulsanti colorati sotto il campo. L'app passa da sola al tocco successivo.</li>
+      </ol>
+      <div class="sec">Utile da sapere</div>
+      <ul class="tips">
+        <li>Il fondamentale (Battuta, Ricezione, Alzata…) lo sceglie l'app: quello previsto ha il <i class="dot-sugg"></i> pallino giallo. Se è un altro (es. <b>Muro</b> invece di Difesa) tocca la sua scheda.</li>
+        <li>In battuta il giocatore in P1 è già scelto e quando si alza è già scelto l'alzatore: basta toccare l'esito.</li>
+        <li>Hai sbagliato? <b>↶ Annulla</b> toglie l'ultima cosa fatta (anche un punto o un cambio).</li>
+        <li>Punto senza un tocco da registrare (errore loro, fallo, arbitro): <b>+1 NOI</b> / <b>+1 AVV</b>.</li>
+        <li>Giocatori grigi: in quel momento non possono toccare (doppio tocco, seconda linea a muro).</li>
+        <li>Rotazione, cambio palla e libero sono automatici. Correzioni, cambi e time-out: <b>Menu</b>.</li>
+      </ul>
+      <div class="sec">Muro</div>
+      <ul class="tips">
+        <li><b>Muro secco</b>: punto.</li>
+        <li><b>Muro normale</b>: toccato, la palla torna nel campo avversario (non è punto).</li>
+        <li><b>Palla rigiocata</b>: tocco a muro, la palla resta a noi e la rigiochiamo.</li>
+        <li><b>Interdizione</b>: non tirano sul muro (sopra o altrove), il muro non tocca.</li>
+      </ul>
+      <div class="sec">Colori dei ruoli</div>
+      <div class="role-legend">
+        <span><i class="role r-al">AL</i> Alzatore</span><span><i class="role r-b">B</i> Bande</span><span><i class="role r-c">C</i> Centri</span>
+        <span><i class="role r-op">OP</i> Opposto</span><span><i class="role r-l">L</i> Libero</span>
+      </div>
+      <div class="opts" style="margin-top:14px"><button class="full noi" data-a="close">Ho capito</button></div>`;
+  }
+
   function sheetMenu() {
     const inServe = st.phase === 'serve';
     const libs = st.liberos;
@@ -1041,7 +1185,8 @@
         <button data-a="timeout" data-team="avv">Time-out AVV (${st.timeouts.avv}/${st.rules.timeouts})</button>
         <button data-a="sub-start" data-team="noi">Cambio NOI (${st.subs.noi}/${st.rules.subs})</button>
         ${st.oppMode === 'avanzata' ? `<button data-a="sub-start" data-team="avv">Cambio AVV (${st.subs.avv})</button>` : '<button data-a="add-player">Aggiungi giocatore</button>'}
-        <button class="full" data-a="stats">Statistiche</button>
+        <button data-a="stats">Statistiche</button>
+        <button data-a="help">Guida</button>
       </div>
       <div class="sec">Libero</div>
       <div class="opts">
@@ -1087,9 +1232,11 @@
     }
     const onCourt = new Set(Object.values(st.lineup));
     const bench = match.roster.filter(p => !onCourt.has(p.number) && !st.liberos.includes(p.number));
+    const outRole = roleNow(st.lineup[s.pos]);
     return `<h2>Entra al posto di ${esc(playerLabel(st.lineup[s.pos]))}</h2>
+      <div class="hint">Può entrare chiunque. Chi entra gioca da <b>${esc(outRole || 'stesso ruolo')}</b> fino a fine set; dal set dopo torna al suo ruolo.</div>
       <div class="opts">
-        ${bench.map(p => `<button data-a="sub-in" data-num="${esc(p.number)}">#${esc(p.number)} ${esc(p.name)} <span class="muted">${esc(p.role)}</span></button>`).join('') || '<div class="muted full">Nessuno in panchina.</div>'}
+        ${bench.map(p => `<button data-a="sub-in" data-num="${esc(p.number)}">#${esc(p.number)} ${esc(p.name)}<br><span class="muted">${esc(p.role)}${p.role !== outRole && outRole ? ' → ' + esc(outRole) : ''}</span></button>`).join('') || '<div class="muted full">Nessuno in panchina.</div>'}
         <button class="full" data-a="close">Annulla</button></div>`;
   }
 
@@ -1114,6 +1261,8 @@
   function addRosterPlayer(list, num, name, role) {
     num = (num || '').trim(); name = (name || '').trim();
     if (!num || !name) { toast('Inserisci numero e nome', true); return false; }
+    const ex = list.findIndex(p => p.number === num && p.example);
+    if (ex >= 0) list.splice(ex, 1); // un giocatore vero prende il posto di quello di esempio
     if (list.some(p => p.number === num)) { toast(`Il numero ${num} esiste già`, true); return false; }
     list.push({ number: num, name, role });
     return true;
@@ -1133,10 +1282,15 @@
         const r = loadRoster();
         if (addRosterPlayer(r, document.getElementById('rp-num-' + sc).value, document.getElementById('rp-name-' + sc).value, document.getElementById('rp-role-' + sc).value)) {
           saveRoster(r); render();
+          const chk = rosterCheck(r);
+          toast(chk.ok ? 'Ruoli completi: puoi creare la partita' : 'Aggiunto · mancano: ' + chk.missing.join(', '));
+          const n = document.getElementById('rp-num-' + sc); if (n) n.focus(); // pronto per il prossimo
         }
         break;
       }
       case 'roster-del': saveRoster(loadRoster().filter(p => p.number !== d.num)); render(); break;
+      case 'roster-example': saveRoster(EXAMPLE_ROSTER.map(p => Object.assign({}, p))); toast('Rosa di esempio caricata: sostituiscila con i tuoi giocatori'); render(); break;
+      case 'roster-clear-example': saveRoster(loadRoster().filter(p => !p.example)); render(); break;
       case 'home': goHome(); break;
 
       // setup
@@ -1173,6 +1327,7 @@
       case 'point-sheet': openSheet(sheetPoint(d.team)); break;
       case 'point': closeSheet(); commit({ type: 'point', winner: d.team, reason: d.reason }); break;
       case 'menu': openSheet(sheetMenu); break;
+      case 'help': openSheet(sheetHelp); break;
       case 'close': closeSheet(); break;
       case 'backdrop': if (el === lastTarget && !ui.sheetLocked) closeSheet(); break;
       case 'set-end': closeSheet(); ui.draft = null; commit({ type: 'setEnd' }); break;
@@ -1188,7 +1343,9 @@
         const s = ui.subStep;
         if (st.subs.noi >= st.rules.subs) toast('Attenzione: cambi esauriti', true);
         closeSheet();
+        const outRole = roleNow(st.lineup[s.pos]);
         commit({ type: 'sub', team: 'noi', pos: s.pos, out: st.lineup[s.pos], in: d.num });
+        toast(`Entra ${playerLabel(d.num)} · gioca da ${outRole || 'stesso ruolo'} fino a fine set`);
         break;
       }
       case 'sub-opp-confirm': {

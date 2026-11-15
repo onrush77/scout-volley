@@ -21,52 +21,57 @@
   //  keep  -> la stessa squadra continua, conta come tocco
   //  reset -> la stessa squadra continua con 3 nuovi tocchi (dopo un muro)
   // label: testo sul pulsante. hidden: esito valido nei dati ma non proposto a schermo.
+  // sub: spiegazione breve mostrata sotto l'esito, per chi usa l'app la prima volta.
   const FUNDS = {
     B: { name: 'Battuta', grades: [
-      { g: '#', label: 'Ace', effect: 'win' },
-      { g: '+', label: 'Buona', effect: 'other' },
-      { g: '!', label: 'Media', effect: 'other' },
-      { g: '-', label: 'Facile', effect: 'other' },
+      { g: '#', label: 'Ace', sub: 'punto diretto', effect: 'win' },
+      { g: '+', label: 'Buona', sub: 'ricezione in difficoltà', effect: 'other' },
+      { g: '!', label: 'Media', sub: 'ricezione discreta', effect: 'other' },
+      { g: '-', label: 'Facile', sub: 'ricezione comoda', effect: 'other' },
       { g: '/', label: 'Rimandata', effect: 'other', hidden: true },
-      { g: '=', label: 'Errore', effect: 'lose' },
+      { g: '=', label: 'Errore', sub: 'rete o fuori', effect: 'lose' },
     ] },
     R: { name: 'Ricezione', grades: [
-      { g: '#', label: 'Perfetta', effect: 'keep' },
-      { g: '+', label: 'Buona', effect: 'keep' },
+      { g: '#', label: '++', sub: 'in testa all\'alzatore', effect: 'keep' },
+      { g: '+', label: 'Buona', sub: 'si attacca bene', effect: 'keep' },
       { g: '!', label: 'Media', effect: 'keep', hidden: true },
-      { g: '-', label: 'Scarsa', effect: 'keep' },
-      { g: '/', label: 'Rimandata di là', effect: 'other' },
-      { g: '=', label: 'Errore / ace subito', effect: 'lose' },
+      { g: '-', label: 'Scarsa', sub: 'attacco difficile', effect: 'keep' },
+      { g: '/', label: 'Rimandata di là', sub: 'senza attaccare', effect: 'other' },
+      { g: '=', label: 'Errore / ace subito', sub: 'punto loro', effect: 'lose' },
     ] },
     E: { name: 'Alzata', grades: [
-      { g: '#', label: 'Perfetta', effect: 'keep' },
-      { g: '+', label: 'Buona', effect: 'keep' },
-      { g: '-', label: 'Scarsa', effect: 'keep' },
+      { g: '#', label: 'Perfetta', sub: 'attaccante libero', effect: 'keep' },
+      { g: '+', label: 'Buona', sub: 'attaccabile', effect: 'keep' },
+      { g: '-', label: 'Scarsa', sub: 'attacco forzato', effect: 'keep' },
       { g: '/', label: 'Di là', effect: 'other', hidden: true },
-      { g: '=', label: 'Errore', effect: 'lose' },
+      { g: '=', label: 'Errore', sub: 'doppia / fallo', effect: 'lose' },
     ] },
     A: { name: 'Attacco', grades: [
-      { g: '#', label: 'Punto', effect: 'win' },
-      { g: '+', label: 'Difeso male', effect: 'other' },
-      { g: '-', label: 'Difeso bene', effect: 'other' },
-      { g: '!', label: 'Coperto', effect: 'reset' },
-      { g: '/', label: 'Murato', effect: 'lose' },
-      { g: '=', label: 'Errore', effect: 'lose' },
+      { g: '#', label: 'Punto', sub: 'palla a terra', effect: 'win' },
+      { g: '+', label: 'Difeso male', sub: 'loro in difficoltà', effect: 'other' },
+      { g: '-', label: 'Difeso bene', sub: 'loro contrattaccano', effect: 'other' },
+      { g: '!', label: 'Coperto', sub: 'murato ma rigiocato', effect: 'reset' },
+      { g: '/', label: 'Murato', sub: 'muro punto loro', effect: 'lose' },
+      { g: '=', label: 'Errore', sub: 'fuori o in rete', effect: 'lose' },
     ] },
+    // Muro: secco = punto; normale = toccato, torna nel campo avversario;
+    // palla rigiocata = toccato, resta a noi; interdizione = non tirano sul muro
+    // (sopra o altrove), nessun tocco. I codici + e - restano quelli di prima.
     M: { name: 'Muro', grades: [
-      { g: '#', label: 'Punto', effect: 'win' },
-      { g: '+', label: 'Toccata, resta a noi', effect: 'reset' },
-      { g: '-', label: 'Toccata, torna di là', effect: 'other' },
-      { g: '/', label: 'Mani out', effect: 'lose' },
-      { g: '=', label: 'Invasione', effect: 'lose' },
+      { g: '#', label: 'Muro secco', sub: 'punto', effect: 'win' },
+      { g: '-', label: 'Muro normale', sub: 'toccato, torna di là', effect: 'other' },
+      { g: '+', label: 'Palla rigiocata', sub: 'tocco a muro, resta a noi', effect: 'reset' },
+      { g: '!', label: 'Interdizione', sub: 'non tirano sul muro', effect: 'reset' },
+      { g: '/', label: 'Mani out', sub: 'punto loro', effect: 'lose' },
+      { g: '=', label: 'Invasione', sub: 'fallo a rete', effect: 'lose' },
     ] },
     D: { name: 'Difesa', grades: [
-      { g: '#', label: 'Perfetta', effect: 'keep' },
-      { g: '+', label: 'Buona', effect: 'keep' },
+      { g: '#', label: 'Perfetta', sub: 'contrattacco facile', effect: 'keep' },
+      { g: '+', label: 'Buona', sub: 'si può attaccare', effect: 'keep' },
       { g: '!', label: 'Non attacc.', effect: 'keep', hidden: true },
-      { g: '-', label: 'Scarsa', effect: 'keep' },
-      { g: '/', label: 'Di là', effect: 'other' },
-      { g: '=', label: 'Errore', effect: 'lose' },
+      { g: '-', label: 'Scarsa', sub: 'palla difficile', effect: 'keep' },
+      { g: '/', label: 'Di là', sub: 'rimandata', effect: 'other' },
+      { g: '=', label: 'Errore', sub: 'punto loro', effect: 'lose' },
     ] },
   };
   const FUND_ORDER = ['B', 'R', 'E', 'A', 'M', 'D'];
@@ -117,6 +122,7 @@
       rally: [],            // tocchi del rally in corso
       timeouts: { noi: 0, avv: 0 },
       subs: { noi: 0, avv: 0 },
+      roles: {},            // ruoli presi con un cambio, validi fino a fine set
       log: [],              // tutti i tocchi registrati (per le statistiche)
       rallies: [],          // tutti i rally conclusi
       lastSetStart: null,
@@ -131,7 +137,10 @@
   const isSetter = r => /alzator|palleggiator/i.test(r || '');
   const isLibero = r => /libero/i.test(r || '');
 
-  function roleOf(match, num) {
+  // Ruolo di un giocatore in questo momento: chi entra con un cambio prende il ruolo
+  // di chi esce per tutto il set (st.roles); al set dopo torna il ruolo della rosa.
+  function roleOf(match, num, st) {
+    if (st && st.roles && st.roles[num]) return st.roles[num];
     const p = match.roster.find(x => x.number === num);
     return p ? p.role : '';
   }
@@ -144,7 +153,7 @@
     if (st.liberoAuto && st.activeLibero) {
       for (const p of BACK_ROW) {
         if (p === 'P1' && st.serving === 'noi') continue;
-        if (isMiddle(roleOf(match, eff[p]))) { eff[p] = st.activeLibero; break; }
+        if (isMiddle(roleOf(match, eff[p], st))) { eff[p] = st.activeLibero; break; }
       }
     }
     return eff;
@@ -155,7 +164,7 @@
   function rotationName(match, st) {
     if (!st.lineup) return '-';
     for (const p of POS) {
-      if (isSetter(roleOf(match, st.lineup[p]))) return 'P' + p.slice(1);
+      if (isSetter(roleOf(match, st.lineup[p], st))) return 'P' + p.slice(1);
     }
     return 'R' + (POS.find(p => st.lineup[p] === (st.lastSetStart && st.lastSetStart.lineup.P1)) || 'P1').slice(1);
   }
@@ -279,6 +288,7 @@
         st.serving = ev.serve;
         st.timeouts = { noi: 0, avv: 0 };
         st.subs = { noi: 0, avv: 0 };
+        st.roles = {};
         st.lastSetStart = ev;
         newRally(st);
         break;
@@ -299,7 +309,10 @@
       case 'sub':
         if (!st.lineup) break;
         if (ev.team === 'avv') { st.oppLineup[ev.pos] = ev.in; }
-        else { st.lineup[ev.pos] = ev.in; }
+        else {
+          st.roles[ev.in] = roleOf(match, st.lineup[ev.pos], st); // prende il ruolo di chi esce
+          st.lineup[ev.pos] = ev.in;
+        }
         st.subs[ev.team || 'noi'] += 1;
         st.lastKey = null;
         break;
@@ -389,7 +402,8 @@
       attTot: aT, kill: g('A', '#'), attErr: g('A', '='), attBlk: g('A', '/'),
       killPct: pct(g('A', '#'), aT),
       attEff: pct(g('A', '#') - g('A', '=') - g('A', '/'), aT),
-      blkPts: g('M', '#'), blkTot: mT,
+      blkPts: g('M', '#'), blkNorm: g('M', '-'), blkReplay: g('M', '+'), blkInt: g('M', '!'),
+      blkErr: g('M', '/') + g('M', '='), blkTot: mT,
       defTot: dT, defPos: pct(g('D', '#') + g('D', '+') + g('D', '!'), dT), defErr: g('D', '='),
       setTot: eT, setErr: g('E', '='),
     };
@@ -450,14 +464,18 @@
       { group: 'Battuta', items: [
         it('Punti in battuta (ace)', T.ace), it('Battute totali', T.serveTot), it('Errori in battuta', T.serveErr)] },
       { group: 'Ricezione', items: [
-        it('Ace subiti', acesAgainst), it('Ricezioni totali', T.recTot), it('Ricezione positiva', T.recPos, true)] },
+        it('Ace subiti', acesAgainst), it('Ricezioni totali', T.recTot), it('Ricezione positiva (++ e buone)', T.recPos, true), it('Ricezione ++ (in testa all\'alzatore)', T.recPrf, true)] },
       { group: 'Attacco', items: [
         it('Punti in attacco', T.kill), it('Palle attaccate', T.attTot), it('Attacchi sbagliati', T.attErr),
         it('Attacchi murati', T.attBlk), it('Attacchi a punto', T.killPct, true)] },
       { group: 'Alzata', items: [
         it('Alzate sbagliate', T.setErr), it('Alzate totali', T.setTot)] },
-      { group: 'Muro e totali', items: [
-        it('Muri punto', T.blkPts), it('Punti fatti', T.points), it('Punti da errori avversari', oppErr),
+      { group: 'Muro', items: [
+        it('Muri secchi (punto)', T.blkPts), it('Muri normali (torna di là)', T.blkNorm),
+        it('Palle rigiocate (tocco a muro)', T.blkReplay), it('Muri d\'interdizione', T.blkInt),
+        it('Errori a muro (mani out, invasione)', T.blkErr)] },
+      { group: 'Totali', items: [
+        it('Punti fatti', T.points), it('Punti da errori avversari', oppErr),
         it('Errori nostri', T.errors + countReason('avv', 'errNoi'))] },
     ];
 
@@ -474,7 +492,7 @@
   const api = {
     POS, FUNDS, FUND_ORDER, TEAMS, gradeInfo, rotateLineup, defaultRules,
     computeState, effectiveLineup, rotationName, suggestFund, computeStats,
-    statRow, isSetOver, setTarget, other, isMiddle, isSetter, isLibero, buildLineup, SLOT_SEQ,
+    statRow, roleOf, isSetOver, setTarget, other, isMiddle, isSetter, isLibero, buildLineup, SLOT_SEQ,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Engine = api;

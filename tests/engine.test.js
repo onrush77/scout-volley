@@ -247,6 +247,55 @@ test('formazione automatica dalla posizione dell\'alzatore', () => {
   }
 });
 
+test('tipi di muro: secco, normale, palla rigiocata, interdizione', () => {
+  const mm = newMatch();
+  const save = [m, st];
+  m = mm; st = E.computeState(m);
+  push({ type: 'setStart', lineup, oppLineup: opp, liberos: ['87'], liberoAuto: true, serve: 'avv' });
+  touch('avv', 'P1', 'B', '+');
+  touch('noi', 'P5', 'R', '+'); touch('noi', 'P1', 'E', '+'); touch('noi', 'P4', 'A', '-');
+  touch('avv', 'P4', 'A', '-');
+  touch('noi', 'P3', 'M', '!'); // interdizione: nessun tocco, 3 tocchi a noi
+  assert.strictEqual(st.turn, 'noi'); assert.strictEqual(st.touches, 0);
+  touch('noi', 'P6', 'D', '+'); touch('noi', 'P1', 'E', '+'); touch('noi', 'P2', 'A', '-');
+  touch('avv', 'P2', 'A', '-');
+  touch('noi', 'P3', 'M', '+'); // palla rigiocata: resta a noi
+  assert.strictEqual(st.turn, 'noi'); assert.strictEqual(st.touches, 0);
+  touch('noi', 'P6', 'D', '+'); touch('noi', 'P1', 'E', '+'); touch('noi', 'P2', 'A', '-');
+  touch('avv', 'P3', 'A', '-');
+  touch('noi', 'P4', 'M', '-'); // muro normale: torna di là
+  assert.strictEqual(st.turn, 'avv'); assert.strictEqual(st.touches, 0);
+  touch('noi', 'P3', 'M', '#'); // muro secco: punto
+  assert.deepStrictEqual(st.score, { noi: 1, avv: 0 });
+  const T = E.computeStats(m, st, null).noiTeam;
+  assert.deepStrictEqual([T.blkPts, T.blkNorm, T.blkReplay, T.blkInt, T.blkErr, T.blkTot], [1, 1, 1, 1, 0, 4]);
+  assert.strictEqual(E.gradeInfo('M', '!').label, 'Interdizione');
+  assert.strictEqual(E.gradeInfo('R', '#').label, '++');
+  [m, st] = save;
+});
+
+test('cambio: chi entra prende il ruolo di chi esce fino a fine set', () => {
+  const save = [m, st];
+  const r2 = roster.concat([{ number: '20', name: 'Riserva', role: 'Opposto' }]);
+  m = newMatch({ roster: r2 }); st = E.computeState(m);
+  push({ type: 'setStart', lineup, oppLineup: opp, liberos: ['87'], liberoAuto: true, serve: 'avv' });
+  // l'opposto di riserva entra al posto del centrale in P6 (seconda linea)
+  push({ type: 'sub', team: 'noi', pos: 'P6', out: '39', in: '20' });
+  assert.strictEqual(E.roleOf(m, '20', st), 'Secondo centro');
+  assert.strictEqual(E.effectiveLineup(m, st).P6, '87', 'il libero entra al posto del nuovo "centro"');
+  // entra al posto dell'alzatore: la rotazione segue lui
+  push({ type: 'sub', team: 'noi', pos: 'P1', out: '16', in: '39' });
+  assert.strictEqual(E.roleOf(m, '39', st), 'Alzatore');
+  assert.strictEqual(E.rotationName(m, st), 'P1');
+  // fine set: al set dopo tornano i ruoli della rosa
+  for (let i = 0; i < 25; i++) push({ type: 'point', winner: 'noi' });
+  push({ type: 'setEnd' });
+  push({ type: 'setStart', lineup, oppLineup: opp, liberos: ['87'], liberoAuto: true, serve: 'noi' });
+  assert.strictEqual(E.roleOf(m, '20', st), 'Opposto');
+  assert.strictEqual(E.roleOf(m, '39', st), 'Secondo centro');
+  [m, st] = save;
+});
+
 test('xlsx valido', () => {
   const bytes = X.makeXlsx([
     { name: 'Prova', rows: [['A', 'B'], ['àèì <&>', 3.5], [null, -2]] },

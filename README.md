@@ -27,8 +27,14 @@ i dispositivi prendono la nuova versione alla prima apertura con internet.
 
 ## Uso in partita
 
-1. **Home**: rosa con i ruoli (alzatore, prima banda, seconda banda, primo centro, secondo centro,
-   opposto, libero), nuova partita (avversario, formula, modalità avversari).
+1. **Home**: in alto la guida *Come si usa*. La rosa parte **vuota**: inserisci i tuoi giocatori con
+   i ruoli (alzatore, prima banda, seconda banda, primo centro, secondo centro, opposto, libero).
+   Per provare l'app c'è *Prova con una rosa di esempio* (nomi segnaposto "Esempio …", non persone
+   reali): un giocatore vero con lo stesso numero prende il posto di quello di esempio.
+   Per creare una partita la rosa deve avere almeno **1 alzatore, 1 opposto, 2 bande e 2 centri**
+   (il libero è facoltativo): sopra l'elenco i ruoli sono verdi se ci sono e rossi se mancano, e
+   nel menu del ruolo è già proposto quello che manca.
+   Poi nuova partita (avversario, formula, modalità avversari).
 2. **Formazione del set**: tocca la posizione di partenza dell'alzatore (P1…P6) e la formazione 5-1
    si compone da sola dai ruoli (alzatore/opposto, bande e centri in diagonale). A lato puoi cambiare
    chi gioca in ogni ruolo e usare **Inverti bande** / **Inverti centri**. Chi batte si sceglie solo al
@@ -53,6 +59,14 @@ i dispositivi prendono la nuova versione alla prima apertura con internet.
    - **Time-out** sempre visibili nel tabellone, uno per squadra (i pallini mostrano quanti ne restano).
    - Sotto il campo: **In campo** con ruolo e pulsante *Sostituisci* (per il libero *Cambia libero*),
      e **Panchina** aggiornata con la rotazione: centro uscito per il libero, secondo libero, riserve.
+   - Il pulsante **?** (e *Guida* nel Menu) spiega la schermata; si apre da solo la prima volta.
+   - Ogni esito ha sotto una breve spiegazione (es. *Muro normale — toccato, torna di là*).
+   - **Muro**: *Muro secco* (punto), *Muro normale* (toccato, torna nel campo avversario),
+     *Palla rigiocata* (tocco a muro, resta a noi), *Interdizione* (non tirano sul muro: sopra o
+     altrove), *Mani out*, *Invasione*.
+   - **Cambi**: può entrare qualsiasi giocatore della panchina. Chi entra **prende il ruolo di chi
+     esce fino a fine set** (es. un opposto che entra per un centro conta come centro: il libero lo
+     sostituisce in seconda linea). Dal set successivo torna al ruolo della rosa.
    - **Menu**: time-out, cambi, libero, correzioni di rotazione/battuta, modalità avversari,
      statistiche, esportazione.
    - Nell'Excel ogni voto ha anche il codice DataVolley (`# + ! - / =`).
@@ -66,8 +80,9 @@ i dispositivi prendono la nuova versione alla prima apertura con internet.
 - **Rapida**: registri solo noi; quando la palla torna tocchi direttamente il nostro giocatore.
 
 ## Statistiche ed esportazione
-- In app: per giocatore e per set (battuta, ricezione positiva/perfetta, efficienza attacco,
-  muri, difesa) e **cambio palla / break per rotazione** (rotazione = posizione del palleggiatore).
+- In app: in alto il titolo dice partita, data, risultato e se i numeri sono di **tutta la partita**
+  o di **un set**. Per giocatore e per set (battuta, ricezione positiva/perfetta, efficienza attacco,
+  muri divisi in secchi / normali / palle rigiocate / interdizione, difesa) e **cambio palla / break per rotazione** (rotazione = posizione del palleggiatore).
 - **Excel** (.xlsx): riepilogo, giocatori, giocatori per set, rotazioni, avversari, rally, tocchi.
 - **Backup** (.json): la partita completa, reimportabile su un altro dispositivo dalla Home.
 
