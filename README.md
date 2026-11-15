@@ -22,8 +22,13 @@ aggiunge alla schermata Home e non serve più internet.
 
 Per provarla sul PC: `cd app && python3 -m http.server 8000`, poi apri http://localhost:8000.
 
-**Aggiornamenti:** dopo aver modificato i file, aumenta `VERSION` in `app/sw.js` e ripubblica;
-i dispositivi prendono la nuova versione alla prima apertura con internet.
+**Aggiornamenti:** dopo aver modificato i file:
+1. aggiungi **in cima** a `app/novita.js` una voce con un numero `v` più alto e le novità scritte per chi usa l'app;
+2. metti lo stesso numero in `VERSION` di `app/sw.js` (`scout-vNN`) e ripubblica.
+
+I dispositivi prendono la nuova versione alla prima apertura con internet: l'app si ricarica da sola
+e mostra la finestra **Novità** con tutto quello che è cambiato dall'ultima volta (si ritrova in
+Menu → *Novità dell'app* e in fondo alla Home). Chi apre l'app per la prima volta non la vede.
 
 ## Uso in partita
 

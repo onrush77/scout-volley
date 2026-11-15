@@ -494,3 +494,7 @@ table.stats tr.tot td.l { background: var(--surface-2); }
 .stats-btn svg { width: 14px; height: 14px; fill: currentColor; }
 .stats-btn:active { background: rgba(243,195,22,.25); }
 @media (max-width: 600px) { .stats-btn { margin-top: 6px; padding: 4px 10px; font-size: 12px; min-height: 32px; } }
+
+/* novità */
+.nov { border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: var(--surface-2); }
+.nov-head { margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }

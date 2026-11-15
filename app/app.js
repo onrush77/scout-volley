@@ -313,6 +313,7 @@
         <div class="muted" style="text-align:center">
           I dati restano su questo dispositivo. Esporta un backup dopo ogni partita.<br>
           Per usarla senza internet: aprila una volta e aggiungila alla schermata Home.
+          <div style="margin-top:10px"><button class="btn" data-a="novita">Novità dell'app</button></div>
         </div>
       </div>`;
   }
@@ -1174,6 +1175,34 @@
       <div class="opts" style="margin-top:14px"><button class="full noi" data-a="close">Ho capito</button></div>`;
   }
 
+  /* ------------------------------- novità ------------------------------- */
+  const NOVITA = window.NOVITA || [];
+  const latestV = () => (NOVITA[0] ? NOVITA[0].v : 0);
+
+  // Prima apertura dopo un aggiornamento: mostra le novità non ancora viste.
+  // Chi apre l'app per la prima volta in assoluto non le vede (per lui è tutto nuovo).
+  function showNovitaIfNew() {
+    const seen = store.get('scout.seenVersion', null);
+    const used = store.get('scout.roster', null) || listMatches().length;
+    if (seen == null && !used) { store.set('scout.seenVersion', latestV()); return; }
+    const since = seen == null ? latestV() - 1 : seen;
+    const news = NOVITA.filter(n => n.v > since);
+    if (!news.length || ui.sheet) return; // con un'altra finestra aperta: la prossima volta
+    store.set('scout.seenVersion', latestV());
+    openSheet(sheetNovita(news));
+  }
+
+  function sheetNovita(list, all) {
+    return () => `
+      <h2>${all ? 'Novità dell\'app' : '🎉 App aggiornata: le novità'}</h2>
+      ${list.map(n => `
+        <div class="nov">
+          <div class="nov-head"><b>${esc(n.titolo)}</b> <span class="muted">${esc(fmtDate(n.data))}</span></div>
+          <ul class="tips">${n.voci.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+        </div>`).join('')}
+      <div class="opts" style="margin-top:14px"><button class="full noi" data-a="close">${all ? 'Chiudi' : 'Ho capito'}</button></div>`;
+  }
+
   function sheetMenu() {
     const inServe = st.phase === 'serve';
     const libs = st.liberos;
@@ -1187,6 +1216,7 @@
         ${st.oppMode === 'avanzata' ? `<button data-a="sub-start" data-team="avv">Cambio AVV (${st.subs.avv})</button>` : '<button data-a="add-player">Aggiungi giocatore</button>'}
         <button data-a="stats">Statistiche</button>
         <button data-a="help">Guida</button>
+        <button class="full" data-a="novita">Novità dell'app</button>
       </div>
       <div class="sec">Libero</div>
       <div class="opts">
@@ -1328,6 +1358,7 @@
       case 'point': closeSheet(); commit({ type: 'point', winner: d.team, reason: d.reason }); break;
       case 'menu': openSheet(sheetMenu); break;
       case 'help': openSheet(sheetHelp); break;
+      case 'novita': openSheet(sheetNovita(NOVITA, true)); break;
       case 'close': closeSheet(); break;
       case 'backdrop': if (el === lastTarget && !ui.sheetLocked) closeSheet(); break;
       case 'set-end': closeSheet(); ui.draft = null; commit({ type: 'setEnd' }); break;
@@ -1410,10 +1441,20 @@
 
   /* ------------------------------- avvio ------------------------------- */
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    // Se arriva una versione nuova mentre l'app è aperta, ricarica una volta per usarla subito
+    // (i dati della partita sono già salvati). Al primo avvio in assoluto non serve.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return;
+      reloading = true;
+      location.reload();
+    });
     navigator.serviceWorker.register('sw.js').catch(() => { /* offline non disponibile */ });
   }
 
   const cur = store.get('scout.current', null);
   if (cur && loadMatch(cur)) openMatch(cur);
   else render();
+  showNovitaIfNew();
 })();
