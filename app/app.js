@@ -61,6 +61,7 @@
     sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
     x: '<path d="M6 6l12 12M18 6L6 18"/>',
+    edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
     whistle: '<path d="M10 6.5h11v4l-6 2a5.5 5.5 0 11-5-6z"/><circle cx="9" cy="14.5" r="1.6"/>',
   };
   const ic = name => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -94,14 +95,47 @@
     return `Set ${s.setsWon.noi}-${s.setsWon.avv}${sets ? ' · ' + sets : ''}${live}`;
   }
 
+  // Salva una partita e aggiorna l'elenco (s = stato già calcolato, se c'è).
+  function storeMatch(m, s) {
+    const ok = store.set('scout.match.' + m.id, m);
+    const idx = listMatches().filter(x => x.id !== m.id);
+    idx.unshift({ id: m.id, opponent: m.opponent, date: m.date, updated: m.updated, summary: matchSummary(m, s || E.computeState(m)) });
+    idx.sort((a, b) => (b.updated || 0) - (a.updated || 0));
+    return ok && store.set('scout.matches', idx);
+  }
+
   function saveMatch() {
     if (!match) return;
     match.updated = Date.now();
-    const ok = store.set('scout.match.' + match.id, match);
-    const idx = listMatches().filter(x => x.id !== match.id);
-    idx.unshift({ id: match.id, opponent: match.opponent, date: match.date, updated: match.updated, summary: matchSummary(match, st) });
-    const ok2 = store.set('scout.matches', idx);
-    saveFailed = !(ok && ok2);
+    saveFailed = !storeMatch(match, st);
+  }
+
+  /* ------------------------------- backup ------------------------------- */
+  // Per ogni partita ricordiamo fino a quale modifica è finita in un backup:
+  // così la Home può avvisare se ci sono partite non ancora salvate fuori dall'app.
+  const backups = () => store.get('scout.backups', {});
+  function markBackedUp(list) {
+    const b = backups();
+    list.forEach(m => { b[m.id] = m.updated || 0; });
+    store.set('scout.backups', b);
+  }
+  function pendingBackups() {
+    const b = backups();
+    return listMatches().filter(m => !(b[m.id] >= (m.updated || 0)));
+  }
+  function fullBackupData() {
+    const matches = listMatches().map(x => loadMatch(x.id)).filter(Boolean);
+    return { type: 'scout-volley-backup', version: 1, created: Date.now(), roster: loadRoster(), matches };
+  }
+  async function exportFullBackup(viaShare) {
+    const data = fullBackupData();
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const name = `scout_backup_completo_${today()}.json`;
+    const ok = viaShare ? await share(blob, name) : (download(blob, name), true);
+    if (!ok) return;
+    markBackedUp(listMatches());
+    toast(`Backup di ${data.matches.length} partite e della rosa scaricato`);
+    render();
   }
 
   function deleteMatch(id) {
@@ -249,7 +283,8 @@
   /* ------------------------------- render ------------------------------- */
   function render() {
     let html;
-    if (ui.view === 'home' || !match) html = viewHome();
+    if (ui.view === 'season') html = viewSeason();
+    else if (ui.view === 'home' || !match) html = viewHome();
     else if (ui.view === 'stats') html = viewStats();
     else if (st.phase === 'setup' || st.phase === 'between') html = viewSetup();
     else if (st.phase === 'matchOver') html = viewMatchOver();
@@ -329,12 +364,27 @@
               <button class="btn primary" data-a="open-match" data-id="${esc(m.id)}">Apri</button>
               <button class="btn icon-only quiet" data-a="ask-delete-match" data-id="${esc(m.id)}" aria-label="Elimina" title="Elimina">${ic('trash')}</button>
             </div>`).join('') : '<div class="empty-state">Nessuna partita salvata.</div>'}
-          <div style="margin-top:12px">
-            <label class="btn block">
-              ${ic('upload')}Importa backup (.json)<input type="file" accept=".json,application/json" data-c="import" hidden>
+          ${matches.length ? `<div style="margin-top:12px"><button class="btn primary block" data-a="season">${ic('chart')}Statistiche di stagione (tutte le partite)</button></div>` : ''}
+          <div class="row" style="margin-top:8px">
+            ${matches.length ? `<button class="btn grow" data-a="backup-all">${ic('download')}Backup completo</button>` : ''}
+            <label class="btn grow">
+              ${ic('upload')}Importa backup<input type="file" accept=".json,application/json" data-c="import" hidden>
             </label>
           </div>
+          <div class="muted" style="margin-top:8px">Il backup completo è un solo file con tutte le partite e la rosa: tienilo su Drive, in mail o su un altro dispositivo.</div>
         </div>`;
+
+    const pend = pendingBackups();
+    const backupWarn = pend.length ? `
+        <div class="card warn-card">
+          <div class="card-h">${ic('download')}<h2>${pend.length === 1 ? '1 partita non è' : pend.length + ' partite non sono'} in nessun backup</h2></div>
+          <div class="muted" style="margin-bottom:10px">I dati sono solo in questo browser: se si cancella la cronologia o cambi dispositivo vanno persi.
+            ${esc(pend.slice(0, 3).map(m => m.opponent || 'Avversario').join(', '))}${pend.length > 3 ? '…' : ''}</div>
+          <div class="row">
+            <button class="btn primary grow" data-a="backup-all">${ic('download')}Scarica backup completo</button>
+            ${canShareFiles() ? `<button class="btn grow" data-a="backup-all-share">${ic('share')}Condividi (Drive, mail…)</button>` : ''}
+          </div>
+        </div>` : '';
 
     return `
       <div class="topbar brandbar">
@@ -342,6 +392,7 @@
         <button class="btn ghost icon-only" data-a="novita" aria-label="Novità dell'app" title="Novità dell'app">${ic('sparkle')}</button>
       </div>
       <div class="page">
+        ${backupWarn}
         ${guide}
         ${ready ? newCard + savedCard + rosterCard : rosterCard + newCard + savedCard}
         <footer class="foot">
@@ -577,7 +628,9 @@
           <div class="stepline"><span class="stepn">3</span><span>Battuta e via.</span></div>
           ${serveCard}
           <div style="margin-top:14px"><button class="btn primary block lg" data-a="start-set">${ic('play')}Inizia set ${n}</button></div>
-          ${match.events.length ? `<div style="margin-top:8px"><button class="btn block" data-a="undo">${ic('undo')}Annulla ultima azione (torna al set precedente)</button></div>` : ''}
+          ${match.events.length ? `<div class="row" style="margin-top:8px">
+            ${st.setNum ? `<button class="btn grow" data-a="events">${ic('edit')}Correggi un'azione</button>` : ''}
+            <button class="btn grow" data-a="undo">${ic('undo')}Annulla ultima azione (torna al set precedente)</button></div>` : ''}
         </div>
       </div>`;
   }
@@ -685,7 +738,7 @@
       <div class="rpanel">
         <div class="tp-head">Azione in corso <span class="muted">· Rotazione ${esc(E.rotationName(match, st))} · Cambi ${st.subs.noi}/${st.rules.subs}</span></div>
         <ol class="touches">${touches || '<li class="empty">Nessun tocco: si parte dalla battuta</li>'}</ol>
-        <div class="tp-head">Ultimi punti</div>
+        <div class="tp-head tp-row">Ultimi punti <button class="link-btn" data-a="events">${ic('edit')}Correggi un'azione</button></div>
         <ul class="lastpts">${last || '<li class="empty">Ancora nessun punto in questo set</li>'}</ul>
       </div>`;
   }
@@ -903,6 +956,7 @@
           <div class="rc-score"><span>${st.setsWon.noi}</span><i>–</i><span>${st.setsWon.avv}</span></div>
           <div class="rc-sets">${st.setResults.map(r => `<span class="${r.winner}">${r.noi}–${r.avv}</span>`).join('')}</div>
         </div>
+        ${pendingBackups().some(m => m.id === match.id) ? `<div class="hint">Partita non ancora in un backup: <b>scarica il backup</b> qui sotto (o il backup completo dalla Home) prima di chiudere.</div>` : ''}
         <div class="card">
           <button class="btn primary block lg" data-a="stats">${ic('chart')}Statistiche</button>
           <div style="height:10px"></div>
@@ -910,6 +964,7 @@
           <div style="height:10px"></div>
           <div class="row">
             <button class="btn grow" data-a="roster-edit">${ic('users')}Modifica rosa</button>
+            <button class="btn grow" data-a="events">${ic('edit')}Correggi un'azione</button>
             <button class="btn grow" data-a="undo">${ic('undo')}Annulla fine set</button>
           </div>
         </div>
@@ -926,10 +981,6 @@
 
     const T = S.noiTeam;
     const playerRows = S.players.map(p => statRowHtml(`#${esc(p.number)} ${esc(p.name)}`, p)).join('');
-    const rotRows = S.rotations.map(r => `
-      <tr class="${r.rot === 'Totale' ? 'tot' : ''}"><td>${esc(r.rot)}</td>
-        <td class="grp">${r.soWon}/${r.soTot}</td><td>${fmtPct(r.soPct)}</td>
-        <td class="grp">${r.bpWon}/${r.bpTot}</td><td>${fmtPct(r.bpPct)}</td></tr>`).join('');
     const oppRows = S.opp.map(p => statRowHtml(esc(oppLabel(p.number)), p)).join('');
 
     return `
@@ -944,29 +995,118 @@
         </div>
         <div class="card">
           <h2>Riepilogo della squadra <span class="muted">· ${ui.statsSet == null ? 'tutta la partita' : 'set ' + ui.statsSet}</span></h2>
-          ${S.general.map(g => `
-            <div class="gen-group">${esc(g.group)}</div>
-            <div class="gen">${g.items.map(i => `<div class="gen-item"><div class="v">${esc(i.pct ? fmtPct(i.value) : i.value)}</div><div class="l">${esc(i.label)}</div></div>`).join('')}</div>`).join('')}
+          ${genHtml(S)}
         </div>
         <div class="card">
           <h2>I nostri giocatori <span class="muted">· ${ui.statsSet == null ? 'tutta la partita' : 'set ' + ui.statsSet}</span></h2>
           <div class="tbl-wrap"><table class="stats">${statHead()}<tbody>${playerRows}${statRowHtml('Squadra', T, true)}</tbody></table></div>
-          <div class="muted stat-legend">
-            <b>Eff</b> = efficienza: in battuta (ace − errori) / battute, in attacco (punti − errori − murati) / attacchi ·
-            <b>+ %</b> = percentuale di ricezioni (o difese) buone o migliori · <b>++ %</b> = ricezioni in testa all'alzatore.<br>
-            <b>Muro</b>: <b>Secchi</b> muro punto · <b>Normali</b> toccato, torna di là · <b>Rigiocate</b> tocco a muro, resta a noi ·
-            <b>Interd.</b> non tirano sul muro (sopra o altrove).
-          </div>
+          ${statLegend()}
         </div>
         <div class="card">
           <h2>Rotazioni <span class="muted">· ${ui.statsSet == null ? 'tutta la partita' : 'set ' + ui.statsSet}</span></h2>
-          <div class="muted" style="margin-bottom:6px">Rotazione = posizione del palleggiatore. Cambio palla = punti vinti in ricezione; Break = punti vinti in battuta.</div>
-          <div class="tbl-wrap"><table class="stats">
-            <thead><tr><th>Rot.</th><th class="grp">Cambio palla</th><th>%</th><th class="grp">Break</th><th>%</th></tr></thead>
-            <tbody>${rotRows}</tbody></table></div>
+          ${rotTableHtml(S)}
         </div>
         ${S.opp.length ? `<div class="card"><h2>Avversari: ${esc(match.opponent)} <span class="muted">· ${ui.statsSet == null ? 'tutta la partita' : 'set ' + ui.statsSet}</span></h2><div class="tbl-wrap"><table class="stats">${statHead()}<tbody>${oppRows}${statRowHtml('Squadra', S.avvTeam, true)}</tbody></table></div></div>` : ''}
         <div class="card">${exportButtons()}</div>
+      </div>`;
+  }
+
+  function genHtml(S) {
+    return S.general.map(g => `
+      <div class="gen-group">${esc(g.group)}</div>
+      <div class="gen">${g.items.map(i => `<div class="gen-item"><div class="v">${esc(i.pct ? fmtPct(i.value) : i.value)}</div><div class="l">${esc(i.label)}</div></div>`).join('')}</div>`).join('');
+  }
+  function rotTableHtml(S) {
+    const rows = S.rotations.map(r => `
+      <tr class="${r.rot === 'Totale' ? 'tot' : ''}"><td>${esc(r.rot)}</td>
+        <td class="grp">${r.soWon}/${r.soTot}</td><td>${fmtPct(r.soPct)}</td>
+        <td class="grp">${r.bpWon}/${r.bpTot}</td><td>${fmtPct(r.bpPct)}</td></tr>`).join('');
+    return `<div class="muted" style="margin-bottom:6px">Rotazione = posizione del palleggiatore. Cambio palla = punti vinti in ricezione; Break = punti vinti in battuta.</div>
+      <div class="tbl-wrap"><table class="stats">
+        <thead><tr><th>Rot.</th><th class="grp">Cambio palla</th><th>%</th><th class="grp">Break</th><th>%</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+  }
+  function statLegend() {
+    return `<div class="muted stat-legend">
+      <b>Eff</b> = efficienza: in battuta (ace − errori) / battute, in attacco (punti − errori − murati) / attacchi ·
+      <b>+ %</b> = percentuale di ricezioni (o difese) buone o migliori · <b>++ %</b> = ricezioni in testa all'alzatore.<br>
+      <b>Muro</b>: <b>Secchi</b> muro punto · <b>Normali</b> toccato, torna di là · <b>Rigiocate</b> tocco a muro, resta a noi ·
+      <b>Interd.</b> non tirano sul muro (sopra o altrove).
+    </div>`;
+  }
+
+  /* ------------------------ statistiche di stagione ------------------------ */
+  // Somma delle partite scelte (di base tutte). ui.seasonOff = partite escluse.
+  function loadGames() {
+    return listMatches().map(x => {
+      try { const m = loadMatch(x.id); return m ? { match: m, st: E.computeState(m) } : null; } catch (e) { return null; }
+    }).filter(Boolean);
+  }
+
+  function viewSeason() {
+    const games = loadGames().sort((a, b) => String(b.match.date).localeCompare(String(a.match.date)));
+    const off = new Set(ui.seasonOff || []);
+    const sel = games.filter(g => !off.has(g.match.id));
+    const pick = g => {
+      const st2 = g.st, on = !off.has(g.match.id);
+      const res = st2.setResults.length ? `${st2.setsWon.noi}–${st2.setsWon.avv}` : '—';
+      const cls = st2.phase === 'matchOver' ? (st2.setsWon.noi > st2.setsWon.avv ? 'win' : 'loss') : 'ongoing';
+      return `<button class="pick${on ? ' on' : ''}" data-a="season-toggle" data-id="${esc(g.match.id)}" aria-pressed="${on}">
+        <span class="pk-box">${on ? ic('check') : ''}</span>
+        <span class="date-chip">${esc(fmtDayMonth(g.match.date))}</span>
+        <span class="grow pk-t">${esc(g.match.opponent || 'Avversario')}</span>
+        <span class="res ${cls}">${res}${cls === 'ongoing' ? ' <small>in corso</small>' : ''}</span></button>`;
+    };
+    const head = `
+      <div class="topbar"><button class="btn ghost" data-a="home">${ic('back')}Partite</button>
+        <h1><span class="tb-eyebrow">Statistiche di stagione</span>NOI <span class="vs">· ${sel.length} ${sel.length === 1 ? 'partita' : 'partite'}</span></h1></div>`;
+    const pickCard = `
+      <div class="card">
+        <div class="card-h">${ic('check')}<h2>Partite incluse</h2>
+          <button class="btn sm" data-a="season-all">Tutte</button><button class="btn sm" data-a="season-none">Nessuna</button></div>
+        <div class="picks">${games.map(pick).join('')}</div>
+      </div>`;
+    if (!sel.length) {
+      return head + `<div class="page stats-page">${pickCard}<div class="empty-state">Scegli almeno una partita.</div></div>`;
+    }
+    const { S, perMatch, record: rec } = E.computeSeasonStats(sel);
+    const kpi = (v, l, cls) => `<div class="kpi ${cls || ''}"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+    const players = S.players.map(p => statRowHtml(`#${esc(p.number)} ${esc(p.name)} <span class="muted">· ${p.games} ${p.games === 1 ? 'partita' : 'partite'}</span>`, p)).join('');
+    const trend = perMatch.slice().reverse().map(m => `<tr>
+        <td class="l">${esc(fmtDayMonth(m.date))} · ${esc(m.opponent || 'Avversario')}</td>
+        <td class="grp"><span class="res ${m.over ? (m.win ? 'win' : 'loss') : 'ongoing'}">${m.setsNoi}–${m.setsAvv}</span></td>
+        <td class="grp">${m.team.points}</td><td>${m.team.errors}</td>
+        <td class="grp">${fmtPct(m.team.serveEff)}</td><td>${fmtPct(m.team.recPos)}</td>
+        <td>${fmtPct(m.team.attEff)}</td><td>${m.team.blkPts}</td>
+        <td class="grp">${fmtPct(m.soPct)}</td><td>${fmtPct(m.bpPct)}</td></tr>`).join('');
+    return head + `
+      <div class="page stats-page">
+        <div class="card">
+          <div class="kpis">
+            ${kpi(rec.played, rec.played === 1 ? 'partita' : 'partite')}
+            ${kpi(rec.won, 'vinte', 'win')}
+            ${kpi(rec.lost, 'perse', 'loss')}
+            ${kpi(`${rec.setsWon}–${rec.setsLost}`, 'set vinti–persi')}
+          </div>
+          ${rec.played > rec.finished ? `<div class="muted" style="margin-top:8px">${rec.played - rec.finished} ${rec.played - rec.finished === 1 ? 'partita è ancora in corso: è contata' : 'partite sono ancora in corso: sono contate'} nelle statistiche ma non tra vinte e perse.</div>` : ''}
+        </div>
+        ${pickCard}
+        <div class="card">
+          <h2>Partita per partita</h2>
+          <div class="tbl-wrap"><table class="stats">
+            <thead><tr><th class="l">Partita</th><th class="grp">Set</th><th class="grp">Punti</th><th>Errori</th>
+              <th class="grp" title="(ace − errori) / battute">Eff batt</th><th title="Ricezioni ++ e buone">Ric + %</th><th title="(punti − errori − murati) / attacchi">Eff att</th><th>Muri</th>
+              <th class="grp" title="Punti vinti in ricezione">Cambio palla</th><th title="Punti vinti in battuta">Break</th></tr></thead>
+            <tbody>${trend}</tbody></table></div>
+        </div>
+        <div class="card"><h2>Riepilogo della squadra <span class="muted">· ${sel.length} partite</span></h2>${genHtml(S)}</div>
+        <div class="card">
+          <h2>I nostri giocatori <span class="muted">· somma delle partite scelte</span></h2>
+          <div class="tbl-wrap"><table class="stats">${statHead()}<tbody>${players}${statRowHtml('Squadra', S.noiTeam, true)}</tbody></table></div>
+          ${statLegend()}
+        </div>
+        <div class="card"><h2>Rotazioni <span class="muted">· somma delle partite scelte</span></h2>${rotTableHtml(S)}</div>
+        <div class="card"><button class="btn primary block" data-a="season-xlsx">${ic('download')}Scarica Excel della stagione</button></div>
       </div>`;
   }
 
@@ -1038,15 +1178,43 @@
     return `scout_${match.date}_${opp || 'partita'}`;
   }
 
+  const xn = v => (v == null ? '' : v);
+  const XL_HEAD = ['Giocatore', 'Ruolo', 'Punti', 'Errori', 'Battute', 'Ace', 'Err batt', 'Eff batt %',
+    'Ricezioni', 'Ric + %', 'Ric ++ %', 'Err ric', 'Attacchi', 'Punti att', 'Err att', 'Murati', 'Kill %', 'Eff att %',
+    'Muri secchi', 'Muri normali', 'Palle rigiocate', 'Muri interdizione', 'Err muro', 'Muri totali', 'Difese', 'Dif + %', 'Err dif', 'Alzate', 'Err alz'];
+  const xlRow = (label, role, s) => [label, role, s.points, s.errors, s.serveTot, s.ace, s.serveErr, xn(s.serveEff),
+    s.recTot, xn(s.recPos), xn(s.recPrf), s.recErr, s.attTot, s.kill, s.attErr, s.attBlk, xn(s.killPct), xn(s.attEff),
+    s.blkPts, s.blkNorm, s.blkReplay, s.blkInt, s.blkErr, s.blkTot, s.defTot, xn(s.defPos), s.defErr, s.setTot, s.setErr];
+
+  function buildSeasonWorkbook() {
+    const off = new Set(ui.seasonOff || []);
+    const sel = loadGames().filter(g => !off.has(g.match.id));
+    const { S, perMatch, record: rec } = E.computeSeasonStats(sel);
+    const riep = [['Voce', 'Valore'], ['Partite', rec.played], ['Vinte', rec.won], ['Perse', rec.lost],
+      ['In corso', rec.played - rec.finished], ['Set vinti', rec.setsWon], ['Set persi', rec.setsLost]];
+    S.general.forEach(g => {
+      riep.push(['', ''], [g.group.toUpperCase(), '']);
+      g.items.forEach(i => riep.push([i.label + (i.pct ? ' %' : ''), xn(i.value)]));
+    });
+    return Xlsx.makeXlsx([
+      { name: 'Riepilogo', rows: riep, widths: [34, 14] },
+      { name: 'Partite', widths: [12, 22, 10, 18, 8, 8, 10, 10, 10, 8, 14, 10],
+        rows: [['Data', 'Avversario', 'Risultato', 'Parziali', 'Punti', 'Errori', 'Eff batt %', 'Ric + %', 'Eff att %', 'Muri', 'Cambio palla %', 'Break %']]
+          .concat(perMatch.map(m => [m.date, m.opponent, `${m.setsNoi}-${m.setsAvv}${m.over ? '' : ' (in corso)'}`, m.setResults.map(r => `${r.noi}-${r.avv}`).join(' '),
+            m.team.points, m.team.errors, xn(m.team.serveEff), xn(m.team.recPos), xn(m.team.attEff), m.team.blkPts, xn(m.soPct), xn(m.bpPct)])) },
+      { name: 'Giocatori', widths: [22, 14, 8],
+        rows: [[XL_HEAD[0], XL_HEAD[1], 'Partite'].concat(XL_HEAD.slice(2))]
+          .concat(S.players.map(p => { const r = xlRow(`#${p.number} ${p.name}`, p.role, p); return [r[0], r[1], p.games].concat(r.slice(2)); }),
+            [(() => { const r = xlRow('Squadra', '', S.noiTeam); return [r[0], r[1], rec.played].concat(r.slice(2)); })()]) },
+      { name: 'Rotazioni', widths: [10, 14, 14, 12, 12, 12, 12],
+        rows: [['Rotazione', 'Cambio palla vinti', 'Cambio palla tot', 'Cambio palla %', 'Break vinti', 'Break tot', 'Break %']]
+          .concat(S.rotations.map(r => [r.rot, r.soWon, r.soTot, xn(r.soPct), r.bpWon, r.bpTot, xn(r.bpPct)])) },
+    ]);
+  }
+
   function buildWorkbook() {
     const S = E.computeStats(match, st, null);
-    const n = v => (v == null ? '' : v);
-    const head = ['Giocatore', 'Ruolo', 'Punti', 'Errori', 'Battute', 'Ace', 'Err batt', 'Eff batt %',
-      'Ricezioni', 'Ric + %', 'Ric ++ %', 'Err ric', 'Attacchi', 'Punti att', 'Err att', 'Murati', 'Kill %', 'Eff att %',
-      'Muri secchi', 'Muri normali', 'Palle rigiocate', 'Muri interdizione', 'Err muro', 'Muri totali', 'Difese', 'Dif + %', 'Err dif', 'Alzate', 'Err alz'];
-    const row = (label, role, s) => [label, role, s.points, s.errors, s.serveTot, s.ace, s.serveErr, n(s.serveEff),
-      s.recTot, n(s.recPos), n(s.recPrf), s.recErr, s.attTot, s.kill, s.attErr, s.attBlk, n(s.killPct), n(s.attEff),
-      s.blkPts, s.blkNorm, s.blkReplay, s.blkInt, s.blkErr, s.blkTot, s.defTot, n(s.defPos), s.defErr, s.setTot, s.setErr];
+    const n = xn, head = XL_HEAD, row = xlRow;
 
     const sheets = [];
     const riep = [['Voce', 'Valore'],
@@ -1125,23 +1293,47 @@
     try {
       await navigator.share({ files: [new File([blob], name, { type: blob.type })], title: name });
     } catch (e) {
-      if (e && e.name === 'AbortError') return;
+      if (e && e.name === 'AbortError') return false;
       download(blob, name);
     }
+    return true;
   }
 
   function importFile(file) {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const m = JSON.parse(reader.result);
-        if (!m || !Array.isArray(m.events) || !Array.isArray(m.roster)) throw new Error('formato');
+        const data = JSON.parse(reader.result);
+        const valid = m => m && Array.isArray(m.events) && Array.isArray(m.roster);
+        if (data && data.type === 'scout-volley-backup' && Array.isArray(data.matches)) {
+          // backup completo: aggiunge le partite che mancano, aggiorna quelle più vecchie
+          let added = 0, updated = 0, same = 0;
+          const done = [];
+          for (const m of data.matches) {
+            if (!valid(m) || !m.id) continue;
+            migrateRoles(m.roster);
+            const s = E.computeState(m); // verifica che sia leggibile
+            const ex = loadMatch(m.id);
+            if (ex && (ex.updated || 0) >= (m.updated || 0)) { same++; continue; }
+            storeMatch(m, s);
+            done.push(m);
+            if (ex) updated++; else added++;
+          }
+          markBackedUp(done);
+          if (!loadRoster().length && Array.isArray(data.roster) && data.roster.length) saveRoster(migrateRoles(data.roster));
+          toast(`Backup importato: ${added} nuove, ${updated} aggiornate${same ? `, ${same} già presenti` : ''}`);
+          render();
+          return;
+        }
+        const m = data;
+        if (!valid(m)) throw new Error('formato');
         m.id = uid();
         migrateRoles(m.roster);
         E.computeState(m); // verifica che sia leggibile
         match = m;
         recompute();
         saveMatch();
+        markBackedUp([match]);
         match = null; st = null;
         toast('Partita importata');
         render();
@@ -1154,7 +1346,7 @@
 
   /* ------------------------------- sheets ------------------------------- */
   function openSheet(fn, locked) { ui.sheet = fn; ui.sheetLocked = !!locked; renderSheet(); }
-  function closeSheet() { ui.sheet = null; ui.sheetLocked = false; ui.subStep = null; ui.rosterEdit = null; renderSheet(); }
+  function closeSheet() { ui.sheet = null; ui.sheetLocked = false; ui.subStep = null; ui.rosterEdit = null; ui.evEdit = null; renderSheet(); }
   function renderSheet() {
     if (!ui.sheet) { $sheet.innerHTML = ''; return; }
     $sheet.innerHTML = `<div class="sheet-backdrop" data-a="backdrop"><div class="sheet" role="dialog" aria-modal="true">${ui.sheet()}</div></div>`;
@@ -1175,6 +1367,7 @@
       <div class="opts">
         <button class="full noi" data-a="set-end">Conferma fine set</button>
         <button class="full" data-a="undo">Annulla ultimo punto</button>
+        <button class="full" data-a="events">Correggi un'azione del set</button>
       </div>`;
   }
 
@@ -1264,6 +1457,9 @@
         <button data-a="sub-start" data-team="noi">${ic('swap')}Cambio NOI <span class="cnt">${st.subs.noi}/${st.rules.subs}</span></button>
         ${st.oppMode === 'avanzata' ? `<button data-a="sub-start" data-team="avv">${ic('swap')}Cambio AVV <span class="cnt">${st.subs.avv}</span></button>` : `<button data-a="stats">${ic('chart')}Statistiche</button>`}
       </div>
+      <div class="opts" style="margin-top:8px">
+        <button class="full feature" data-a="events">${ic('edit')}<span class="ft"><b>Correggi un'azione</b><small>Cambia giocatore o esito di un tocco vecchio, elimina un punto o un cambio</small></span></button>
+      </div>
       <div class="sec">Squadra</div>
       <div class="opts">
         <button class="full feature" data-a="roster-edit">${ic('users')}<span class="ft"><b>Modifica rosa</b><small>Correggi maglie, nomi e ruoli · aggiungi o togli giocatori</small></span></button>
@@ -1293,6 +1489,125 @@
         <button data-a="home">${ic('back')}Elenco partite</button>
         <button class="${st.oppMode === 'avanzata' ? 'full' : ''}" data-a="close">Chiudi</button>
       </div>`;
+  }
+
+  /* --------------------------- correggi un'azione --------------------------- */
+  // Elenco delle azioni di un set: ogni tocco si può modificare (chi, fondamentale, esito)
+  // o cancellare; punti, cambi, time-out e libero si possono cancellare. Lo stato si
+  // ricalcola da capo. Non si accettano correzioni che cambierebbero un set già chiuso.
+  const EDITABLE = ['touch', 'point', 'sub', 'timeout', 'libero', 'rotate', 'serveFix'];
+
+  function openEvents() {
+    ui.evEdit = { set: Math.max(1, st.setNum), idx: null, del: null };
+    openSheet(sheetEvents);
+  }
+
+  function eventRows(setN) {
+    const rows = [];
+    E.computeState(match, (ev, i, s) => {
+      if (s.setNum === setN && EDITABLE.includes(ev.type)) {
+        rows.push({ i, ev, score: `${s.score.noi}–${s.score.avv}`, opp: s.oppMode === 'avanzata' ? s.oppLineup : null, oppMode: s.oppMode });
+      }
+    });
+    return rows;
+  }
+
+  function eventText(r) {
+    const ev = r.ev;
+    const opp = id => (r.oppMode === 'avanzata' || !/^P\d$/.test(id) ? '#' + id : 'Zona ' + id);
+    switch (ev.type) {
+      case 'touch': {
+        const who = ev.team === 'noi' ? playerLabel(ev.player) : 'AVV ' + opp(ev.player);
+        return `<i class="fdot f-${ev.fund}"></i><span class="t ${ev.team}">${esc(who)}</span><span class="f">${E.FUNDS[ev.fund].name}</span>
+          <span class="g ${GRADE_CLASS[ev.grade] || ''}">${esc(gradeLabel(ev.fund, ev.grade))}</span>`;
+      }
+      case 'point': return `<span class="t"><b>Punto ${teamLabel(ev.winner)}</b> <span class="muted">${esc(reasonLabel(ev.reason || 'manuale'))}</span></span>`;
+      case 'sub': return `<span class="t">Cambio ${teamLabel(ev.team || 'noi')}: entra ${esc(ev.team === 'avv' ? '#' + ev.in : playerLabel(ev.in))} per ${esc(ev.team === 'avv' ? '#' + ev.out : playerLabel(ev.out))}</span>`;
+      case 'timeout': return `<span class="t">Time-out ${teamLabel(ev.team)}</span>`;
+      case 'libero': return `<span class="t">${ev.num ? 'Libero: ' + esc(playerLabel(ev.num)) : 'Senza libero'}</span>`;
+      case 'rotate': return `<span class="t">Correzione rotazione ${teamLabel(ev.team)} (${ev.dir === -1 ? 'indietro' : 'avanti'})</span>`;
+      case 'serveFix': return `<span class="t">Battuta corretta: batte ${teamLabel(ev.team)}</span>`;
+      default: return esc(ev.type);
+    }
+  }
+
+  function sheetEvents() {
+    const X = ui.evEdit;
+    if (X.idx != null) return sheetEditTouch();
+    const sets = Array.from({ length: Math.max(1, st.setNum) }, (_, k) => k + 1);
+    const rows = eventRows(X.set).reverse();
+    const closed = st.setResults.some(r => r.n === X.set);
+    const row = r => `<div class="ev-row ${r.ev.type}">
+        <span class="ev-sc">${r.score}</span>
+        <div class="ev-d">${eventText(r)}</div>
+        ${r.ev.type === 'touch' ? `<button class="ev-b" data-a="ev-edit" data-i="${r.i}" aria-label="Modifica" title="Modifica">${ic('edit')}</button>` : ''}
+        ${X.del === r.i
+          ? `<button class="ev-b danger" data-a="ev-del" data-i="${r.i}">Elimina</button>`
+          : `<button class="ev-b" data-a="ev-del-ask" data-i="${r.i}" aria-label="Elimina" title="Elimina">${ic('trash')}</button>`}
+      </div>`;
+    return `
+      <div class="sheet-h"><h2>Correggi un'azione</h2><button class="sheet-x" data-a="close" aria-label="Chiudi">${ic('x')}</button></div>
+      <div class="muted" style="margin-bottom:10px">Le più recenti in alto. A sinistra il punteggio in quel momento. Tocca ${ic('edit')} per cambiare giocatore o esito, ${ic('trash')} per eliminare: punteggio, rotazioni e statistiche si ricalcolano da soli.</div>
+      ${sets.length > 1 ? `<div class="seg" style="margin-bottom:10px">${sets.map(n => `<button class="${n === X.set ? 'on' : ''}" data-a="ev-set" data-set="${n}">Set ${n}</button>`).join('')}</div>` : ''}
+      ${closed ? '<div class="hint">Set già chiuso: puoi correggere chi ha toccato e gli esiti, ma non cose che cambierebbero il punteggio finale del set.</div>' : ''}
+      <div class="ev-list">${rows.map(row).join('') || '<div class="empty-state">Nessuna azione in questo set.</div>'}</div>
+      <div class="opts" style="margin-top:12px"><button class="full" data-a="close">Chiudi</button></div>`;
+  }
+
+  function sheetEditTouch() {
+    const X = ui.evEdit, ev = match.events[X.idx], d = X.draft;
+    const sb = E.stateBefore(match, X.idx);
+    const eff = E.effectiveLineup(match, sb);
+    const order = ['P4', 'P3', 'P2', 'P5', 'P6', 'P1'];
+    const who = d.team === 'noi'
+      ? order.map(p => { const pl = player(eff[p]); return `<button class="${d.pos === p ? 'noi' : ''}" data-a="ev-pos" data-pos="${p}"><b>#${esc(eff[p] || '?')}</b> ${esc(pl ? pl.name : '')}<br><span class="muted">${p}</span></button>`; }).join('')
+      : ['P4', 'P3', 'P2', 'P5', 'P6', 'P1'].map(p => `<button class="${d.pos === p ? 'avv' : ''}" data-a="ev-pos" data-pos="${p}"><b>${sb.oppMode === 'avanzata' ? '#' + esc(sb.oppLineup[p]) : 'Zona ' + p}</b>${sb.oppMode === 'avanzata' ? `<br><span class="muted">${p}</span>` : ''}</button>`).join('');
+    const funds = E.FUND_ORDER.map(f => `<button class="ftab${d.fund === f ? ' on' : ''}" data-a="ev-fund" data-f="${f}"><i class="fdot f-${f}"></i>${E.FUNDS[f].name}</button>`).join('');
+    const grades = E.FUNDS[d.fund].grades.filter(g => !g.hidden || g.g === d.grade).map(g =>
+      `<button class="${GRADE_CLASS[g.g]}${d.grade === g.g ? ' on' : ''}" data-a="ev-grade" data-g="${esc(g.g)}">${esc(g.label)}${g.sub ? `<small>${esc(g.sub)}</small>` : ''}</button>`).join('');
+    // chi vince il punto con quel tocco (null = il gioco continua)
+    const winnerOf = (team, f, g) => { const gi = E.gradeInfo(f, g); return !gi ? null : gi.effect === 'win' ? team : gi.effect === 'lose' ? E.other(team) : null; };
+    const warn = winnerOf(ev.team, ev.fund, ev.grade) !== winnerOf(d.team, d.fund, d.grade);
+    return `
+      <div class="sheet-h"><button class="sheet-x" data-a="ev-back" aria-label="Indietro">${ic('back')}</button><h2>Modifica tocco</h2><button class="sheet-x" data-a="close" aria-label="Chiudi">${ic('x')}</button></div>
+      <div class="ev-was">Prima: ${eventText({ ev, oppMode: sb.oppMode })} <span class="muted">· sul ${sb.score.noi}–${sb.score.avv}</span></div>
+      ${sb.oppMode !== 'skip' ? `<div class="sec">Squadra</div><div class="seg"><button class="${d.team === 'noi' ? 'on' : ''}" data-a="ev-team" data-team="noi">NOI</button><button class="${d.team === 'avv' ? 'on' : ''}" data-a="ev-team" data-team="avv">Avversari</button></div>` : ''}
+      <div class="sec">Chi ha toccato</div>
+      <div class="opts three">${who}</div>
+      <div class="sec">Fondamentale</div>
+      <div class="ftabs">${funds}</div>
+      <div class="sec">Esito</div>
+      <div class="obtns ev-grades">${grades}</div>
+      ${warn ? '<div class="hint" style="margin-top:12px">Attenzione: così cambia chi vince il punto (o se il punto finisce). Punteggio e rotazioni da lì in poi si ricalcolano.</div>' : ''}
+      <div class="opts" style="margin-top:14px">
+        <button class="noi" data-a="ev-save">${ic('check')}Salva</button>
+        <button data-a="ev-back">Annulla</button>
+      </div>`;
+  }
+
+  // Applica una correzione agli eventi; se rovina un set già chiuso, la annulla.
+  function applyEventFix(mutate, okMsg) {
+    const backup = JSON.stringify(match.events);
+    const before = JSON.stringify(st.setResults);
+    const setNumBefore = st.setNum;
+    try {
+      mutate(match.events);
+      recompute();
+    } catch (e) {
+      match.events = JSON.parse(backup); recompute();
+      toast('Correzione non riuscita', true);
+      return false;
+    }
+    if (JSON.stringify(st.setResults) !== before || st.setNum !== setNumBefore) {
+      match.events = JSON.parse(backup); recompute();
+      toast('Non si può: cambierebbe il risultato di un set già chiuso', true);
+      return false;
+    }
+    saveMatch();
+    resetSelection();
+    const live = ['serve', 'rally', 'setOver'].includes(st.phase) && (!ui.evEdit || ui.evEdit.set === st.setNum);
+    toast(live ? `${okMsg} · ora ${st.score.noi}–${st.score.avv}` : okMsg);
+    return true;
   }
 
   /* ----------------------------- modifica rosa ----------------------------- */
@@ -1507,7 +1822,10 @@
       case 'menu': openSheet(sheetMenu); break;
       case 'help': openSheet(sheetHelp); break;
       case 'novita': openSheet(sheetNovita(NOVITA, true)); break;
-      case 'close': closeSheet(); break;
+      case 'close':
+        closeSheet();
+        if (match && st && ui.view === 'match' && st.phase === 'setOver') openSheet(sheetSetOver, true);
+        break;
       case 'backdrop': if (el === lastTarget && !ui.sheetLocked) closeSheet(); break;
       case 'set-end': closeSheet(); ui.draft = null; commit({ type: 'setEnd' }); break;
       case 'timeout': {
@@ -1540,6 +1858,48 @@
       case 'serve-fix': closeSheet(); commit({ type: 'serveFix', team: d.team }); break;
       case 'set-mode': closeSheet(); commit({ type: 'oppMode', mode: d.mode }); break;
       case 'roster-edit': openRosterEdit(); break;
+      case 'events': openEvents(); break;
+      case 'ev-set': ui.evEdit.set = +d.set; ui.evEdit.del = null; renderSheet(); break;
+      case 'ev-del-ask': ui.evEdit.del = +d.i; renderSheetKeepScroll(); break;
+      case 'ev-del': {
+        const i = +d.i;
+        ui.evEdit.del = null;
+        applyEventFix(evs => evs.splice(i, 1), 'Azione eliminata');
+        render(); renderSheetKeepScroll();
+        break;
+      }
+      case 'ev-edit': {
+        const ev = match.events[+d.i];
+        ui.evEdit.idx = +d.i;
+        ui.evEdit.draft = { team: ev.team, pos: ev.pos, fund: ev.fund, grade: ev.grade };
+        renderSheet();
+        break;
+      }
+      case 'ev-back': ui.evEdit.idx = null; renderSheet(); break;
+      case 'ev-team': {
+        const dr = ui.evEdit.draft; dr.team = d.team; renderSheetKeepScroll(); break;
+      }
+      case 'ev-pos': ui.evEdit.draft.pos = d.pos; renderSheetKeepScroll(); break;
+      case 'ev-fund': {
+        const dr = ui.evEdit.draft; dr.fund = d.f;
+        if (!E.gradeInfo(dr.fund, dr.grade)) dr.grade = E.FUNDS[d.f].grades[0].g;
+        renderSheetKeepScroll(); break;
+      }
+      case 'ev-grade': ui.evEdit.draft.grade = d.g; renderSheetKeepScroll(); break;
+      case 'ev-save': {
+        const X = ui.evEdit, dr = X.draft, i = X.idx;
+        const sb = E.stateBefore(match, i);
+        const eff = E.effectiveLineup(match, sb);
+        const playerId = dr.team === 'noi' ? eff[dr.pos] : (sb.oppMode === 'avanzata' ? sb.oppLineup[dr.pos] : dr.pos);
+        if (!playerId) { toast('In quella posizione non c\'è nessuno', true); break; }
+        if (applyEventFix(evs => {
+          const ev = evs[i];
+          Object.assign(ev, { team: dr.team, pos: dr.pos, player: playerId, fund: dr.fund, grade: dr.grade });
+          if (!(ev.fund === 'B' && ev.grade === '#' && ev.team === 'avv')) delete ev.receiver;
+        }, 'Tocco corretto')) X.idx = null;
+        render(); renderSheet();
+        break;
+      }
       case 're-add': {
         const R = ui.rosterEdit;
         R.rows.push({ orig: null, number: '', name: '', role: rosterCheck(R.rows).nextRole || 'Libero' });
@@ -1550,14 +1910,27 @@
       case 're-del': ui.rosterEdit.rows.splice(+d.i, 1); renderSheetKeepScroll(); break;
       case 're-save': saveRosterEdit(); break;
 
+      // stagione
+      case 'season': ui.view = 'season'; ui.seasonOff = ui.seasonOff || []; window.scrollTo(0, 0); render(); break;
+      case 'season-toggle': {
+        const off = new Set(ui.seasonOff || []);
+        if (off.has(d.id)) off.delete(d.id); else off.add(d.id);
+        ui.seasonOff = [...off]; render(); break;
+      }
+      case 'season-all': ui.seasonOff = []; render(); break;
+      case 'season-none': ui.seasonOff = listMatches().map(m => m.id); render(); break;
+      case 'season-xlsx': download(new Blob([buildSeasonWorkbook()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `scout_stagione_${today()}.xlsx`); break;
+
       // stats / export
       case 'stats': closeSheet(); ui.view = 'stats'; window.scrollTo(0, 0); render(); break;
       case 'back-match': ui.view = 'match'; render(); break;
       case 'stats-set': ui.statsSet = d.set === '' ? null : +d.set; render(); break;
       case 'export-xlsx': download(blobXlsx(), baseFilename() + '.xlsx'); break;
       case 'share-xlsx': share(blobXlsx(), baseFilename() + '.xlsx'); break;
-      case 'export-json': download(blobJson(), baseFilename() + '.json'); break;
-      case 'share-json': share(blobJson(), baseFilename() + '.json'); break;
+      case 'export-json': download(blobJson(), baseFilename() + '.json'); markBackedUp([match]); render(); break;
+      case 'share-json': { const m = match; share(blobJson(), baseFilename() + '.json').then(ok => { if (ok) { markBackedUp([m]); render(); } }); break; }
+      case 'backup-all': exportFullBackup(false); break;
+      case 'backup-all-share': exportFullBackup(true); break;
     }
   }
 

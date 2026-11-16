@@ -299,7 +299,7 @@ test('cambio: chi entra prende il ruolo di chi esce fino a fine set', () => {
 test('modifica rosa a partita iniziata: cambio numeri e giocatori usati', () => {
   const r = roster.map(p => Object.assign({}, p)).concat([{ number: '20', name: 'Riserva', role: 'Opposto' }, { number: '21', name: 'Mai usato', role: 'Opposto' }]);
   m = newMatch({ roster: r }); st = E.computeState(m);
-  push({ type: 'setStart', lineup, slots: { AL: '16', OP: '33' }, oppLineup: opp, liberos: ['87', '43'], liberoAuto: true, serve: 'avv' });
+  push({ type: 'setStart', lineup: Object.assign({}, lineup), slots: { AL: '16', OP: '33' }, oppLineup: opp, liberos: ['87', '43'], liberoAuto: true, serve: 'avv' });
   push({ type: 'touch', team: 'avv', pos: 'P1', player: 'P1', fund: 'B', grade: '#', receiver: { pos: 'P5', player: '35' } });
   touch('noi', 'P1', 'R', '+');
   push({ type: 'sub', team: 'noi', pos: 'P4', out: '33', in: '20' });
@@ -321,6 +321,33 @@ test('modifica rosa a partita iniziata: cambio numeri e giocatori usati', () => 
   assert.strictEqual(E.computeStats(m, st, null).players.find(p => p.number === '33').recTot, before, 'le statistiche seguono il giocatore');
   assert.strictEqual(before, 1);
   assert.strictEqual(E.roleOf(m, '2', st), 'Opposto', 'chi entra prende il ruolo di chi esce');
+});
+
+test('stato prima di un evento e statistiche di stagione', () => {
+  const play = (serveFirst, nPoints) => {
+    m = newMatch({ id: 'm' + Math.random(), date: '2026-11-0' + (serveFirst === 'noi' ? 1 : 2) }); st = E.computeState(m);
+    push({ type: 'setStart', lineup, oppLineup: opp, liberos: ['87'], liberoAuto: true, serve: serveFirst });
+    for (let i = 0; i < nPoints; i++) {
+      if (st.serving === 'noi') touch('noi', 'P1', 'B', '#'); else push({ type: 'point', winner: 'noi', reason: 'errAvv' });
+    }
+    return { match: m, st };
+  };
+  const g1 = play('noi', 3), g2 = play('avv', 2);
+  // stateBefore: punteggio subito prima del terzo evento
+  const sb = E.stateBefore(g1.match, 3);
+  assert.deepStrictEqual(sb.score, { noi: 2, avv: 0 });
+  // computeState con callback: vede il punteggio prima di ogni evento
+  const seen = [];
+  E.computeState(g1.match, (ev, i, s) => seen.push(s.score.noi));
+  assert.deepStrictEqual(seen, [0, 0, 1, 2]);
+  const R = E.computeSeasonStats([g1, g2]);
+  assert.strictEqual(R.record.played, 2);
+  assert.strictEqual(R.record.finished, 0);
+  assert.strictEqual(R.S.noiTeam.ace, 3 + 1, 'ace sommati sulle due partite');
+  // partita 1: batte l'alzatore (16); partita 2: dopo il cambio palla batte il 12
+  assert.deepStrictEqual(R.S.players.map(p => p.number + ':' + p.games + ':' + p.ace), ['12:1:1', '16:1:3']);
+  assert.strictEqual(R.perMatch.length, 2);
+  assert.strictEqual(R.perMatch[0].date, '2026-11-01', 'in ordine di data');
 });
 
 test('xlsx valido', () => {

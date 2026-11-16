@@ -342,10 +342,56 @@
     }
   }
 
-  function computeState(match) {
+  // onEvent(ev, i, st): facoltativo, chiamato PRIMA di applicare ogni evento
+  // (st è lo stato in quel momento: serve per sapere punteggio e formazione di allora).
+  function computeState(match, onEvent) {
     const st = emptyState(match);
-    for (const ev of match.events) apply(match, st, ev);
+    match.events.forEach((ev, i) => {
+      if (onEvent) onEvent(ev, i, st);
+      apply(match, st, ev);
+    });
     return st;
+  }
+
+  // Stato subito prima dell'evento i (per correggere un'azione vecchia).
+  function stateBefore(match, i) {
+    return computeState(Object.assign({}, match, { events: match.events.slice(0, i) }));
+  }
+
+  /* ------------------------- statistiche di stagione ------------------------- */
+  // games = [{ match, st }]. Somma tocchi e rally di tutte le partite e li passa
+  // allo stesso calcolo della singola partita. I giocatori sono riconosciuti dalla maglia
+  // (nome e ruolo della partita più recente).
+  function computeSeasonStats(games) {
+    const sorted = games.slice().sort((a, b) => String(a.match.date).localeCompare(String(b.match.date)));
+    const roster = {};
+    sorted.forEach(g => g.match.roster.forEach(p => { roster[p.number] = p; }));
+    const log = [], rallies = [];
+    sorted.forEach(g => { log.push(...g.st.log); rallies.push(...g.st.rallies); });
+    const S = computeStats({ roster: Object.values(roster) }, { log, rallies }, null);
+    S.players.forEach(p => {
+      p.games = sorted.filter(g => g.st.log.some(r => r.team === 'noi' && r.player === p.number)).length;
+    });
+    S.players.sort((a, b) => (+a.number || 0) - (+b.number || 0));
+
+    const perMatch = sorted.map(g => {
+      const s = computeStats(g.match, g.st, null);
+      const tot = s.rotations[s.rotations.length - 1];
+      const over = g.st.phase === 'matchOver';
+      return {
+        id: g.match.id, date: g.match.date, opponent: g.match.opponent,
+        setsNoi: g.st.setsWon.noi, setsAvv: g.st.setsWon.avv, setResults: g.st.setResults,
+        over, win: over ? g.st.setsWon.noi > g.st.setsWon.avv : null,
+        team: s.noiTeam, soPct: tot.soPct, bpPct: tot.bpPct,
+      };
+    });
+    const done = perMatch.filter(m => m.over);
+    const record = {
+      played: perMatch.length, finished: done.length,
+      won: done.filter(m => m.win).length, lost: done.filter(m => !m.win).length,
+      setsWon: perMatch.reduce((s, m) => s + m.setsNoi, 0), setsLost: perMatch.reduce((s, m) => s + m.setsAvv, 0),
+    };
+    return { S, perMatch, record };
   }
 
   // Fondamentale suggerito per il prossimo tocco di "team".
@@ -531,7 +577,7 @@
     POS, FUNDS, FUND_ORDER, TEAMS, gradeInfo, rotateLineup, defaultRules,
     computeState, effectiveLineup, rotationName, suggestFund, computeStats,
     statRow, roleOf, isSetOver, setTarget, other, isMiddle, isSetter, isLibero, buildLineup, SLOT_SEQ,
-    usedPlayers, renumberPlayers,
+    usedPlayers, renumberPlayers, stateBefore, computeSeasonStats,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Engine = api;

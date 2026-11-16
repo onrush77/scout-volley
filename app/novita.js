@@ -7,6 +7,15 @@
  */
 window.NOVITA = [
   {
+    v: 27, data: '2026-11-16', titolo: 'Statistiche di stagione, correggi un\'azione, backup completo',
+    voci: [
+      'Statistiche di stagione: in Home, sotto le partite salvate. Sommano tutte le partite (o solo quelle che scegli): giocatori, squadra, rotazioni e una tabella partita per partita. Si scaricano anche in Excel.',
+      'Correggi un\'azione: dal Menu o da "Correggi un\'azione" accanto a Ultimi punti. Puoi cambiare giocatore, fondamentale o esito di un tocco vecchio, o eliminare un punto, un cambio, un time-out. Punteggio e statistiche si ricalcolano da soli.',
+      'Nei set già chiusi puoi correggere chi ha toccato e gli esiti, ma non cose che cambierebbero il punteggio finale del set.',
+      'Backup completo: un solo file con tutte le partite e la rosa (Home → Backup completo). Se ci sono partite non ancora salvate in un backup, la Home te lo ricorda. Importandolo su un altro dispositivo ritrovi tutto.',
+    ],
+  },
+  {
     v: 26, data: '2026-11-16', titolo: 'Rosa modificabile durante la partita e nuova grafica',
     voci: [
       'Hai sbagliato a inserire un giocatore? Ora puoi correggere la rosa anche a partita iniziata: Menu → Modifica rosa (oppure "Correggi la rosa" nella schermata della formazione).',
