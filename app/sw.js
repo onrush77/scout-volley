@@ -1,6 +1,6 @@
 /* Service worker: tiene in cache l'app per usarla senza internet.
  * Quando modifichi i file dell'app, aumenta VERSION così i dispositivi si aggiornano. */
-const VERSION = 'scout-v25'; // stesso numero della prima voce di novita.js
+const VERSION = 'scout-v26'; // stesso numero della prima voce di novita.js
 const FILES = ['./', 'index.html', 'style.css', 'engine.js', 'xlsx.js', 'novita.js', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -40,6 +40,36 @@
     avv: 'Punto avversario', errNoi: 'Errore nostro', manuale: 'Manuale',
   };
 
+  /* ------------------------------- icone ------------------------------- */
+  // Icone a linea (SVG dentro al codice: funzionano anche senza internet).
+  const ICONS = {
+    back: '<path d="M15 18l-6-6 6-6"/>',
+    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/>',
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    help: '<circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.3a2.9 2.9 0 015.6 1c0 1.9-2.8 2.6-2.8 4.2"/><path d="M12 17.6v.1"/>',
+    users: '<path d="M16 20v-1.5a4 4 0 00-4-4H6.5a4 4 0 00-4 4V20"/><circle cx="9.2" cy="7.5" r="3.7"/><path d="M21.5 20v-1.5a4 4 0 00-3-3.85"/><path d="M15.5 3.9a3.7 3.7 0 010 7.2"/>',
+    chart: '<path d="M4 20V11M10 20V5M16 20v-6M21 20H3"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12.5a1.5 1.5 0 001.5 1.5h7a1.5 1.5 0 001.5-1.5L18 7M9 7V4.5h6V7"/>',
+    lock: '<rect x="5" y="11" width="14" height="9.5" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
+    download: '<path d="M12 4v11M7 10.5l5 5 5-5M4.5 20h15"/>',
+    share: '<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M5 13v6a1.5 1.5 0 001.5 1.5h11A1.5 1.5 0 0019 19v-6"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+    swap: '<path d="M7 4L3.5 7.5 7 11M3.5 7.5h14M17 13l3.5 3.5L17 20M20.5 16.5h-14"/>',
+    play: '<path d="M7 4.5v15l12.5-7.5z"/>',
+    upload: '<path d="M12 20V9M7 13.5l5-5 5 5M4.5 4h15"/>',
+    sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    x: '<path d="M6 6l12 12M18 6L6 18"/>',
+    whistle: '<path d="M10 6.5h11v4l-6 2a5.5 5.5 0 11-5-6z"/><circle cx="9" cy="14.5" r="1.6"/>',
+  };
+  const ic = name => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+  // Logo: pallone nei colori della squadra.
+  const LOGO = `<svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+    <circle cx="20" cy="20" r="17" fill="#0f2a4a" stroke="#f5c518" stroke-width="2.4"/>
+    <path d="M20 3c-2 6 0 12 6 16s7.5 10 5 16M3.6 16c6-1.5 11.6 0 15.4 4.5S28 27 36.5 25.5M10 35c1-6.5 4.5-11 10-14.5S30.5 12 30.8 6.5" fill="none" stroke="#2b9cf0" stroke-width="2.4" stroke-linecap="round"/>
+  </svg>`;
+
   /* ------------------------------ storage ------------------------------ */
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
@@ -251,7 +281,7 @@
 
     const rosterCard = `
         <div class="card">
-          <h2>${ready ? 'La tua squadra' : '1 · La tua squadra'}</h2>
+          <div class="card-h">${ic('users')}<h2>${ready ? '' : '<span class="stepn">1</span>'}La tua squadra</h2>${roster.length ? `<span class="count">${roster.length} giocatori</span>` : ''}</div>
           <div class="muted" style="margin-bottom:8px">${roster.length
             ? 'Usata per tutte le nuove partite. Il ruolo serve per comporre la formazione da sola e per far entrare il libero al posto dei centri.'
             : 'Ancora nessun giocatore. Aggiungi i tuoi giocatori qui sotto (maglia, nome, ruolo): il ruolo proposto è quello che manca.'}</div>
@@ -266,7 +296,7 @@
 
     const newCard = `
         <div class="card">
-          <h2>${ready ? '' : '2 · '}Nuova partita</h2>
+          <div class="card-h">${ic('whistle')}<h2>${ready ? '' : '<span class="stepn">2</span>'}Nuova partita</h2></div>
           ${ready ? '' : `<div class="hint">Per iniziare servono almeno 1 alzatore, 1 opposto, 2 bande e 2 centri nella squadra. Mancano: <b>${esc(chk.missing.join(', '))}</b>.</div>`}
           <div class="form-grid">
             <label class="full">Avversario<input data-c="nm.opponent" value="${esc(nm.opponent)}" placeholder="Nome squadra avversaria" autocomplete="off"></label>
@@ -283,38 +313,42 @@
               <div class="muted" style="margin-top:6px">${modeHelp(nm.oppMode)}</div>
             </div>
           </div>
-          <div style="margin-top:12px"><button class="btn primary block" data-a="create-match" ${ready ? '' : 'disabled'}>Crea partita e imposta il 1° set</button></div>
+          <div style="margin-top:14px"><button class="btn primary block lg" data-a="create-match" ${ready ? '' : 'disabled'}>${ic('play')}Crea partita e imposta il 1° set</button></div>
         </div>`;
 
     const savedCard = `
         <div class="card">
-          <h2>Partite salvate</h2>
+          <div class="card-h">${ic('chart')}<h2>Partite salvate</h2>${matches.length ? `<span class="count">${matches.length}</span>` : ''}</div>
           ${matches.length ? matches.map(m => `
-            <div class="list-item">
+            <div class="list-item match-item">
+              <div class="date-chip">${esc(fmtDayMonth(m.date))}</div>
               <div class="grow">
-                <div><strong>${esc(m.opponent || 'Avversario')}</strong> <span class="muted">${esc(m.date || '')}</span></div>
+                <div class="mi-title">NOI <span class="muted">contro</span> ${esc(m.opponent || 'Avversario')}</div>
                 <div class="muted">${esc(m.summary || '')}</div>
               </div>
               <button class="btn primary" data-a="open-match" data-id="${esc(m.id)}">Apri</button>
-              <button class="btn" data-a="ask-delete-match" data-id="${esc(m.id)}" aria-label="Elimina">Elimina</button>
-            </div>`).join('') : '<div class="muted">Nessuna partita salvata.</div>'}
+              <button class="btn icon-only quiet" data-a="ask-delete-match" data-id="${esc(m.id)}" aria-label="Elimina" title="Elimina">${ic('trash')}</button>
+            </div>`).join('') : '<div class="empty-state">Nessuna partita salvata.</div>'}
           <div style="margin-top:12px">
-            <label class="btn block" style="display:flex;align-items:center;justify-content:center">
-              Importa backup (.json)<input type="file" accept=".json,application/json" data-c="import" style="display:none">
+            <label class="btn block">
+              ${ic('upload')}Importa backup (.json)<input type="file" accept=".json,application/json" data-c="import" hidden>
             </label>
           </div>
         </div>`;
 
     return `
-      <div class="topbar"><h1>Scout Volley</h1></div>
+      <div class="topbar brandbar">
+        <div class="brand">${LOGO}<div><h1>Scout Volley</h1><div class="tagline">Scouting pallavolo · funziona offline</div></div></div>
+        <button class="btn ghost icon-only" data-a="novita" aria-label="Novità dell'app" title="Novità dell'app">${ic('sparkle')}</button>
+      </div>
       <div class="page">
         ${guide}
         ${ready ? newCard + savedCard + rosterCard : rosterCard + newCard + savedCard}
-        <div class="muted" style="text-align:center">
+        <footer class="foot">
           I dati restano su questo dispositivo. Esporta un backup dopo ogni partita.<br>
           Per usarla senza internet: aprila una volta e aggiungila alla schermata Home.
-          <div style="margin-top:10px"><button class="btn" data-a="novita">Novità dell'app</button></div>
-        </div>
+          <div style="margin-top:12px"><button class="btn sm" data-a="novita">${ic('sparkle')}Novità dell'app</button></div>
+        </footer>
       </div>`;
   }
 
@@ -370,14 +404,14 @@
       ${sorted.map(p => `
         <div class="list-item">
           <span class="badge ${roleClass(p.role)}">#${esc(p.number)}</span>
-          <div class="grow">${esc(p.name)} <span class="muted">${esc(p.role)}</span></div>
-          <button class="btn" data-a="roster-del" data-scope="${scope}" data-num="${esc(p.number)}" aria-label="Rimuovi">✕</button>
+          <div class="grow"><div class="pl-name">${esc(p.name)}</div><div class="muted">${esc(p.role)}</div></div>
+          <button class="btn icon-only quiet" data-a="roster-del" data-scope="${scope}" data-num="${esc(p.number)}" aria-label="Rimuovi" title="Rimuovi">${ic('trash')}</button>
         </div>`).join('')}
       <div class="row" style="margin-top:10px">
         <input id="rp-num-${scope}" placeholder="Maglia" inputmode="numeric" style="width:70px;flex:none">
         <input id="rp-name-${scope}" placeholder="Cognome o nome" class="grow" style="width:auto;flex:1">
         <select id="rp-role-${scope}" style="width:auto;flex:1">${ROLES.map(r => `<option value="${r}" ${r === defRole ? 'selected' : ''}>${r}${chk.items.some(i => !i.ok && i.roles.includes(r)) ? ' — manca' : ''}</option>`).join('')}</select>
-        <button class="btn primary" data-a="roster-add" data-scope="${scope}">Aggiungi</button>
+        <button class="btn primary" data-a="roster-add" data-scope="${scope}">${ic('plus')}Aggiungi</button>
       </div>`;
   }
 
@@ -497,28 +531,29 @@
 
     return `
       <div class="topbar">
-        <button class="btn ghost" data-a="home">‹ Partite</button>
-        <h1>${esc(match.opponent)} · Set ${n}</h1>
-        ${st.setNum ? '<button class="btn ghost" data-a="stats">Statistiche</button>' : ''}
+        <button class="btn ghost" data-a="home">${ic('back')}Partite</button>
+        <h1><span class="tb-eyebrow">Formazione · Set ${n}</span>NOI <span class="vs">contro</span> ${esc(match.opponent)}</h1>
+        <button class="btn ghost" data-a="roster-edit">${ic('users')}<span class="hide-sm">Modifica rosa</span></button>
+        ${st.setNum ? `<button class="btn ghost" data-a="stats">${ic('chart')}<span class="hide-sm">Statistiche</span></button>` : ''}
       </div>
       <div class="page wide">
         ${prevSets ? `<div class="card"><strong>Set ${st.setsWon.noi}–${st.setsWon.avv}</strong> <span class="muted">${prevSets}</span></div>` : ''}
         <div class="card">
-          <h2>Formazione — Set ${n}</h2>
+          <div class="card-h"><h2>Formazione — Set ${n}</h2><button class="btn sm" data-a="roster-edit">${ic('users')}Correggi la rosa</button></div>
           <div class="setup-grid">
             <div>
-              <div class="stepline"><span class="stepn">1</span>Tocca la casella dove parte l'<b>alzatore</b>: gli altri si mettono da soli.</div>
+              <div class="stepline"><span class="stepn">1</span><span>Tocca la casella dove parte l'<b>alzatore</b>: gli altri si mettono da soli.</span></div>
               <div class="net-label">RETE</div>
               <div class="rot-grid">${['P4', 'P3', 'P2', 'P5', 'P6', 'P1'].map(rotBtn).join('')}</div>
               <div class="muted" style="margin-top:8px">Alzatore in ${d.setterPos} · rotazione ${d.setterPos}</div>
               ${draftBenchHtml(d)}
             </div>
             <div>
-              <div class="stepline"><span class="stepn">2</span>Controlla chi gioca in ogni ruolo (cambia dal menu se serve).</div>
+              <div class="stepline"><span class="stepn">2</span><span>Controlla chi gioca in ogni ruolo (cambia dal menu se serve).</span></div>
               <div class="pair">${slotSel('AL')}</div>
               <div class="pair">${slotSel('OP')}</div>
-              <div class="pair">${slotSel('B1')}${slotSel('B2')}<button class="btn swap" data-a="draft-swap" data-pair="B">Inverti bande</button></div>
-              <div class="pair">${slotSel('C1')}${slotSel('C2')}<button class="btn swap" data-a="draft-swap" data-pair="C">Inverti centri</button></div>
+              <div class="pair">${slotSel('B1')}${slotSel('B2')}<button class="btn swap" data-a="draft-swap" data-pair="B">${ic('swap')}Inverti bande</button></div>
+              <div class="pair">${slotSel('C1')}${slotSel('C2')}<button class="btn swap" data-a="draft-swap" data-pair="C">${ic('swap')}Inverti centri</button></div>
               <div class="pair">
                 <label class="slot"><span class="r-l">Libero 1</span><select data-c="draft.lib.0">${opt(d.liberos[0], libs(d.liberos[0]), 'nessuno')}</select></label>
                 <label class="slot"><span class="r-l">Libero 2</span><select data-c="draft.lib.1">${opt(d.liberos[1], libs(d.liberos[1]), 'nessuno')}</select></label>
@@ -539,10 +574,10 @@
         </div>` : ''}
 
         <div class="card">
-          <div class="stepline"><span class="stepn">3</span>Battuta e via.</div>
+          <div class="stepline"><span class="stepn">3</span><span>Battuta e via.</span></div>
           ${serveCard}
-          <div style="margin-top:14px"><button class="btn primary block" data-a="start-set">Inizia set ${n}</button></div>
-          ${match.events.length ? '<div style="margin-top:8px"><button class="btn block" data-a="undo">Annulla ultima azione (torna al set precedente)</button></div>' : ''}
+          <div style="margin-top:14px"><button class="btn primary block lg" data-a="start-set">${ic('play')}Inizia set ${n}</button></div>
+          ${match.events.length ? `<div style="margin-top:8px"><button class="btn block" data-a="undo">${ic('undo')}Annulla ultima azione (torna al set precedente)</button></div>` : ''}
         </div>
       </div>`;
   }
@@ -593,7 +628,7 @@
     const to = t => {
       const used = st.timeouts[t], max = st.rules.timeouts;
       const dots = Array.from({ length: max }, (_, i) => `<i class="${i < used ? 'used' : ''}"></i>`).join('');
-      return `<button class="to-btn" data-a="timeout" data-team="${t}" ${used >= max ? 'disabled' : ''}>Time-out <span class="dots">${dots}</span></button>`;
+      return `<button class="to-btn" data-a="timeout" data-team="${t}" ${used >= max ? 'disabled' : ''}>${ic('clock')}Time-out <span class="dots">${dots}</span></button>`;
     };
     const serve = t => (st.serving === t ? '<span class="serve-tag">in battuta</span>' : '');
     const prev = st.setResults.map(r => `${r.noi}-${r.avv}`).join('  ');
@@ -607,8 +642,8 @@
           </div>
           <div class="center">
             <div class="score"><span class="s">${st.score.noi}</span><span class="sep">–</span><span class="s">${st.score.avv}</span></div>
-            <div class="setinfo">SET ${st.setNum} · set ${st.setsWon.noi}–${st.setsWon.avv}${prev ? ' · ' + esc(prev) : ''}</div>
-            <button class="stats-btn" data-a="stats"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="9" width="3" height="6"/><rect x="6.5" y="5" width="3" height="10"/><rect x="12" y="1" width="3" height="14"/></svg>Statistiche</button>
+            <div class="setinfo"><span class="set-pill">SET ${st.setNum}</span> set vinti ${st.setsWon.noi}–${st.setsWon.avv}${prev ? ' · ' + esc(prev) : ''}</div>
+            <button class="stats-btn" data-a="stats">${ic('chart')}Statistiche</button>
           </div>
           <div class="side avv">
             <div class="tname">${esc(match.opponent)}</div>
@@ -627,11 +662,11 @@
           </div>
         </div>
         <div class="bottombar">
-          <button class="b-undo" data-a="undo">↶ Annulla</button>
-          <button class="p-noi" data-a="point-sheet" data-team="noi">+1 NOI</button>
-          <button class="p-avv" data-a="point-sheet" data-team="avv">+1 AVV</button>
-          <button class="b-menu" data-a="menu">Menu</button>
-          <button class="b-help" data-a="help" aria-label="Guida">?</button>
+          <button class="b-undo" data-a="undo">${ic('undo')}<span>Annulla</span></button>
+          <button class="p-noi" data-a="point-sheet" data-team="noi"><b>+1</b> NOI</button>
+          <button class="p-avv" data-a="point-sheet" data-team="avv"><b>+1</b> AVV</button>
+          <button class="b-menu" data-a="menu">${ic('menu')}<span>Menu</span></button>
+          <button class="b-help" data-a="help" aria-label="Guida">${ic('help')}</button>
         </div>
       </div>`;
   }
@@ -861,18 +896,22 @@
   function viewMatchOver() {
     const w = st.setsWon.noi > st.setsWon.avv ? 'Vittoria!' : (st.setsWon.noi < st.setsWon.avv ? 'Sconfitta' : 'Finita');
     return `
-      <div class="topbar"><button class="btn ghost" data-a="home">‹ Partite</button><h1>${esc(match.opponent)}</h1></div>
+      <div class="topbar"><button class="btn ghost" data-a="home">${ic('back')}Partite</button><h1><span class="tb-eyebrow">Partita finita</span>NOI <span class="vs">contro</span> ${esc(match.opponent)}</h1></div>
       <div class="page">
-        <div class="card" style="text-align:center">
-          <h2>${w} ${st.setsWon.noi}–${st.setsWon.avv}</h2>
-          <div class="muted">${st.setResults.map(r => `${r.noi}–${r.avv}`).join(' · ')}</div>
+        <div class="card result-card ${st.setsWon.noi > st.setsWon.avv ? 'win' : 'loss'}">
+          <div class="rc-label">${w}</div>
+          <div class="rc-score"><span>${st.setsWon.noi}</span><i>–</i><span>${st.setsWon.avv}</span></div>
+          <div class="rc-sets">${st.setResults.map(r => `<span class="${r.winner}">${r.noi}–${r.avv}</span>`).join('')}</div>
         </div>
         <div class="card">
-          <button class="btn primary block" data-a="stats">Statistiche</button>
-          <div style="height:8px"></div>
+          <button class="btn primary block lg" data-a="stats">${ic('chart')}Statistiche</button>
+          <div style="height:10px"></div>
           ${exportButtons()}
-          <div style="height:8px"></div>
-          <button class="btn block" data-a="undo">Annulla fine set</button>
+          <div style="height:10px"></div>
+          <div class="row">
+            <button class="btn grow" data-a="roster-edit">${ic('users')}Modifica rosa</button>
+            <button class="btn grow" data-a="undo">${ic('undo')}Annulla fine set</button>
+          </div>
         </div>
       </div>`;
   }
@@ -894,7 +933,7 @@
     const oppRows = S.opp.map(p => statRowHtml(esc(oppLabel(p.number)), p)).join('');
 
     return `
-      <div class="topbar"><button class="btn ghost" data-a="back-match">‹ Partita</button><h1>Statistiche</h1></div>
+      <div class="topbar"><button class="btn ghost" data-a="back-match">${ic('back')}Partita</button><h1><span class="tb-eyebrow">Statistiche</span>NOI <span class="vs">contro</span> ${esc(match.opponent)}</h1></div>
       <div class="page stats-page">
         <div class="card stats-head">
           <div class="sh-match"><span class="swatch"></span>NOI <span class="sh-vs">contro</span> ${esc(match.opponent)}</div>
@@ -932,6 +971,10 @@
   }
 
   // Testi del titolo delle statistiche: data, risultato, a cosa si riferiscono i numeri.
+  function fmtDayMonth(d) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || '');
+    return m ? `${+m[3]} ${['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'][+m[2] - 1] || ''}` : '–';
+  }
   function fmtDate(d) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || '');
     return m ? `${m[3]}/${m[2]}/${m[1]}` : (d || '');
@@ -981,12 +1024,12 @@
     const share = canShareFiles();
     return `
       <div class="row">
-        <button class="btn primary grow" data-a="export-xlsx">Scarica Excel</button>
-        ${share ? '<button class="btn grow" data-a="share-xlsx">Condividi Excel</button>' : ''}
+        <button class="btn primary grow" data-a="export-xlsx">${ic('download')}Scarica Excel</button>
+        ${share ? `<button class="btn grow" data-a="share-xlsx">${ic('share')}Condividi Excel</button>` : ''}
       </div>
       <div class="row" style="margin-top:8px">
-        <button class="btn grow" data-a="export-json">Scarica backup</button>
-        ${share ? '<button class="btn grow" data-a="share-json">Condividi backup</button>' : ''}
+        <button class="btn grow" data-a="export-json">${ic('download')}Scarica backup</button>
+        ${share ? `<button class="btn grow" data-a="share-json">${ic('share')}Condividi backup</button>` : ''}
       </div>`;
   }
 
@@ -1111,10 +1154,16 @@
 
   /* ------------------------------- sheets ------------------------------- */
   function openSheet(fn, locked) { ui.sheet = fn; ui.sheetLocked = !!locked; renderSheet(); }
-  function closeSheet() { ui.sheet = null; ui.sheetLocked = false; ui.subStep = null; renderSheet(); }
+  function closeSheet() { ui.sheet = null; ui.sheetLocked = false; ui.subStep = null; ui.rosterEdit = null; renderSheet(); }
   function renderSheet() {
     if (!ui.sheet) { $sheet.innerHTML = ''; return; }
     $sheet.innerHTML = `<div class="sheet-backdrop" data-a="backdrop"><div class="sheet" role="dialog" aria-modal="true">${ui.sheet()}</div></div>`;
+  }
+
+  function renderSheetKeepScroll() {
+    const a = $sheet.querySelector('.sheet'), top = a ? a.scrollTop : 0;
+    renderSheet();
+    const b = $sheet.querySelector('.sheet'); if (b) b.scrollTop = top;
   }
 
   function sheetSetOver() {
@@ -1207,16 +1256,17 @@
     const inServe = st.phase === 'serve';
     const libs = st.liberos;
     return `
-      <h2>Menu</h2>
+      <div class="sheet-h"><h2>Menu</h2><button class="sheet-x" data-a="close" aria-label="Chiudi">${ic('x')}</button></div>
       <div class="sec">Partita</div>
       <div class="opts">
-        <button data-a="timeout" data-team="noi">Time-out NOI (${st.timeouts.noi}/${st.rules.timeouts})</button>
-        <button data-a="timeout" data-team="avv">Time-out AVV (${st.timeouts.avv}/${st.rules.timeouts})</button>
-        <button data-a="sub-start" data-team="noi">Cambio NOI (${st.subs.noi}/${st.rules.subs})</button>
-        ${st.oppMode === 'avanzata' ? `<button data-a="sub-start" data-team="avv">Cambio AVV (${st.subs.avv})</button>` : '<button data-a="add-player">Aggiungi giocatore</button>'}
-        <button data-a="stats">Statistiche</button>
-        <button data-a="help">Guida</button>
-        <button class="full" data-a="novita">Novità dell'app</button>
+        <button data-a="timeout" data-team="noi">${ic('clock')}Time-out NOI <span class="cnt">${st.timeouts.noi}/${st.rules.timeouts}</span></button>
+        <button data-a="timeout" data-team="avv">${ic('clock')}Time-out AVV <span class="cnt">${st.timeouts.avv}/${st.rules.timeouts}</span></button>
+        <button data-a="sub-start" data-team="noi">${ic('swap')}Cambio NOI <span class="cnt">${st.subs.noi}/${st.rules.subs}</span></button>
+        ${st.oppMode === 'avanzata' ? `<button data-a="sub-start" data-team="avv">${ic('swap')}Cambio AVV <span class="cnt">${st.subs.avv}</span></button>` : `<button data-a="stats">${ic('chart')}Statistiche</button>`}
+      </div>
+      <div class="sec">Squadra</div>
+      <div class="opts">
+        <button class="full feature" data-a="roster-edit">${ic('users')}<span class="ft"><b>Modifica rosa</b><small>Correggi maglie, nomi e ruoli · aggiungi o togli giocatori</small></span></button>
       </div>
       <div class="sec">Libero</div>
       <div class="opts">
@@ -1235,10 +1285,118 @@
       ${segOppMode(st.oppMode, 'set-mode')}
       <div class="sec">Esporta</div>
       ${exportButtons()}
-      <div class="opts" style="margin-top:14px">
-        <button data-a="home">‹ Elenco partite</button>
-        <button data-a="close">Chiudi</button>
+      <div class="sec">Altro</div>
+      <div class="opts">
+        ${st.oppMode === 'avanzata' ? `<button data-a="stats">${ic('chart')}Statistiche</button>` : ''}
+        <button data-a="help">${ic('help')}Guida</button>
+        <button data-a="novita">${ic('sparkle')}Novità dell'app</button>
+        <button data-a="home">${ic('back')}Elenco partite</button>
+        <button class="${st.oppMode === 'avanzata' ? 'full' : ''}" data-a="close">Chiudi</button>
       </div>`;
+  }
+
+  /* ----------------------------- modifica rosa ----------------------------- */
+  // Si può correggere la rosa anche a partita iniziata: maglia, nome e ruolo.
+  // Se cambia una maglia, tutto ciò che è già registrato passa al nuovo numero.
+  // Chi ha già giocato (formazione, tocchi, cambi) non si può togliere.
+  function openRosterEdit() {
+    ui.rosterEdit = {
+      rows: match.roster.slice().sort((a, b) => (+a.number || 0) - (+b.number || 0))
+        .map(p => ({ orig: p.number, number: p.number, name: p.name, role: p.role, example: p.example })),
+      sync: true,
+    };
+    openSheet(sheetRoster, true); // niente chiusura toccando fuori: si perderebbero le modifiche
+  }
+
+  function sheetRoster() {
+    const R = ui.rosterEdit;
+    const used = E.usedPlayers(match);
+    const chk = rosterCheck(R.rows);
+    const row = (r, i) => {
+      const locked = r.orig != null && used.has(r.orig);
+      const changed = r.orig != null && r.number.trim() !== r.orig;
+      return `<div class="re-row ${roleClass(r.role)}">
+        <input class="re-num" data-re="${i}.number" value="${esc(r.number)}" inputmode="numeric" placeholder="N°" aria-label="Maglia">
+        <input class="re-name" data-re="${i}.name" value="${esc(r.name)}" placeholder="Nome" aria-label="Nome">
+        <select class="re-role" data-re="${i}.role" aria-label="Ruolo">${ROLES.map(x => `<option ${x === r.role ? 'selected' : ''}>${x}</option>`).join('')}${ROLES.includes(r.role) ? '' : `<option selected>${esc(r.role)}</option>`}</select>
+        ${locked
+          ? `<span class="re-lock" title="Ha già giocato in questa partita: non si può togliere">${ic('lock')}</span>`
+          : `<button class="re-del" data-a="re-del" data-i="${i}" aria-label="Togli" title="Togli">${ic('trash')}</button>`}
+        ${changed ? `<div class="re-note">Maglia ${esc(r.orig)} → ${esc(r.number.trim() || '?')}: i tocchi già registrati passano al nuovo numero</div>` : ''}
+      </div>`;
+    };
+    return `
+      <div class="sheet-h"><h2>Rosa della partita</h2><button class="sheet-x" data-a="close" aria-label="Chiudi">${ic('x')}</button></div>
+      <div class="muted" style="margin-bottom:10px">Correggi maglia, nome o ruolo, aggiungi chi manca. Il <span class="re-lock inline">${ic('lock')}</span> indica chi ha già giocato: non si può togliere, ma si può correggere.</div>
+      ${rosterCheckHtml(chk)}
+      <div class="re-head"><span>N°</span><span>Nome</span><span>Ruolo</span><span></span></div>
+      <div class="re-list">${R.rows.map(row).join('')}</div>
+      <button class="btn block dashed" data-a="re-add">${ic('plus')}Aggiungi giocatore</button>
+      <label class="check" style="margin-top:8px"><input type="checkbox" data-re="sync" ${R.sync ? 'checked' : ''}> Applica anche alla squadra salvata (per le prossime partite)</label>
+      <div class="opts" style="margin-top:12px">
+        <button class="noi" data-a="re-save">${ic('check')}Salva modifiche</button>
+        <button data-a="close">Annulla</button>
+      </div>`;
+  }
+
+  function saveRosterEdit() {
+    const R = ui.rosterEdit;
+    const rows = R.rows.map(r => Object.assign({}, r, { number: (r.number || '').trim(), name: (r.name || '').trim() }))
+      .filter(r => r.orig != null || r.number || r.name); // righe nuove lasciate vuote: ignorate
+    if (rows.some(r => !r.number || !r.name)) { toast('Ogni giocatore deve avere maglia e nome', true); return; }
+    const dup = rows.map(r => r.number).find((n, i, a) => a.indexOf(n) !== i);
+    if (dup) { toast(`La maglia ${dup} è usata due volte`, true); return; }
+    const used = E.usedPlayers(match);
+    const kept = new Set(rows.filter(r => r.orig != null).map(r => r.orig));
+    const removed = match.roster.map(p => p.number).filter(n => !kept.has(n));
+    if (removed.some(n => used.has(n))) { toast('Chi ha già giocato non si può togliere', true); return; }
+
+    const map = {};
+    rows.forEach(r => { if (r.orig != null && r.orig !== r.number) map[r.orig] = r.number; });
+    const mapNum = v => (v && Object.prototype.hasOwnProperty.call(map, v) ? map[v] : v);
+    const backup = JSON.stringify(match);
+    try {
+      E.renumberPlayers(match, map);
+      match.roster = rows.map(r => {
+        const p = { number: r.number, name: r.name, role: r.role };
+        const orig = r.orig != null && match.roster.find(x => x.number === r.orig);
+        if (r.example && orig && orig.name === r.name) p.example = true;
+        return p;
+      });
+      recompute();
+    } catch (e) {
+      match = JSON.parse(backup); recompute();
+      toast('Modifica non riuscita: rosa lasciata com\'era', true);
+      return;
+    }
+    // bozza della formazione e ultima formazione usata seguono i nuovi numeri
+    const nums = new Set(match.roster.map(p => p.number));
+    const fix = v => { const n = mapNum(v); return n && nums.has(n) ? n : ''; };
+    if (ui.draft) {
+      for (const k in ui.draft.slots) ui.draft.slots[k] = fix(ui.draft.slots[k]);
+      ui.draft.liberos = ui.draft.liberos.map(fix);
+    }
+    const ls = store.get('scout.lastSlots', null);
+    if (ls) { for (const k in ls) ls[k] = fix(ls[k]); store.set('scout.lastSlots', ls); }
+
+    if (R.sync) {
+      const byOrig = {};
+      rows.forEach(r => { if (r.orig != null) byOrig[r.orig] = r; });
+      let team = loadRoster().filter(p => !removed.includes(p.number))
+        .map(p => (byOrig[p.number] ? { number: byOrig[p.number].number, name: byOrig[p.number].name, role: byOrig[p.number].role } : p));
+      const edited = new Set(rows.map(r => r.number));
+      // un giocatore della squadra non in partita con lo stesso numero di uno corretto: vince la correzione
+      team = team.filter((p, i) => !edited.has(p.number) || team.findIndex(x => x.number === p.number) === i);
+      rows.forEach(r => { if (!team.some(p => p.number === r.number)) team.push({ number: r.number, name: r.name, role: r.role }); });
+      saveRoster(team);
+    }
+    saveMatch();
+    ui.rosterEdit = null;
+    closeSheet();
+    resetSelection();
+    if (st.phase === 'setOver') openSheet(sheetSetOver, true);
+    render();
+    toast(R.sync ? 'Rosa aggiornata, anche per le prossime partite' : 'Rosa della partita aggiornata');
   }
 
   function sheetSub() {
@@ -1268,16 +1426,6 @@
       <div class="opts">
         ${bench.map(p => `<button data-a="sub-in" data-num="${esc(p.number)}">#${esc(p.number)} ${esc(p.name)}<br><span class="muted">${esc(p.role)}${p.role !== outRole && outRole ? ' → ' + esc(outRole) : ''}</span></button>`).join('') || '<div class="muted full">Nessuno in panchina.</div>'}
         <button class="full" data-a="close">Annulla</button></div>`;
-  }
-
-  function sheetAddPlayer() {
-    return `<h2>Aggiungi giocatore</h2>
-      <div class="form-grid">
-        <label>Numero<input id="ap-num" inputmode="numeric"></label>
-        <label>Ruolo<select id="ap-role">${ROLES.map(r => `<option>${r}</option>`).join('')}</select></label>
-        <label class="full">Nome<input id="ap-name"></label>
-      </div>
-      <div class="opts" style="margin-top:12px"><button class="noi" data-a="add-player-confirm">Aggiungi</button><button data-a="close">Annulla</button></div>`;
   }
 
   function sheetConfirmDelete(id) {
@@ -1391,16 +1539,16 @@
       case 'rotate': closeSheet(); commit({ type: 'rotate', team: d.team, dir: +d.dir }); toast(`Rotazione ${teamLabel(d.team)} corretta`); break;
       case 'serve-fix': closeSheet(); commit({ type: 'serveFix', team: d.team }); break;
       case 'set-mode': closeSheet(); commit({ type: 'oppMode', mode: d.mode }); break;
-      case 'add-player': openSheet(sheetAddPlayer); break;
-      case 'add-player-confirm': {
-        const num = document.getElementById('ap-num').value, name = document.getElementById('ap-name').value, role = document.getElementById('ap-role').value;
-        if (addRosterPlayer(match.roster, num, name, role)) {
-          const r = loadRoster();
-          if (!r.some(p => p.number === num.trim())) { r.push({ number: num.trim(), name: name.trim(), role }); saveRoster(r); }
-          saveMatch(); closeSheet(); render(); toast('Giocatore aggiunto');
-        }
+      case 'roster-edit': openRosterEdit(); break;
+      case 're-add': {
+        const R = ui.rosterEdit;
+        R.rows.push({ orig: null, number: '', name: '', role: rosterCheck(R.rows).nextRole || 'Libero' });
+        renderSheet();
+        const ins = $sheet.querySelectorAll('.re-num'); if (ins.length) ins[ins.length - 1].focus();
         break;
       }
+      case 're-del': ui.rosterEdit.rows.splice(+d.i, 1); renderSheetKeepScroll(); break;
+      case 're-save': saveRosterEdit(); break;
 
       // stats / export
       case 'stats': closeSheet(); ui.view = 'stats'; window.scrollTo(0, 0); render(); break;
@@ -1423,6 +1571,27 @@
 
   function onField(e) {
     const el = e.target;
+    const re = el.dataset && el.dataset.re;
+    if (re && ui.rosterEdit) {
+      if (re === 'sync') { ui.rosterEdit.sync = el.checked; return; }
+      const [i, f] = re.split('.');
+      const r = ui.rosterEdit.rows[+i];
+      r[f] = el.value;
+      // ruolo cambiato: aggiorna colori e ruoli mancanti (solo per i menu, così non si perde il tocco sulla casella dopo)
+      if (f === 'role' && e.type === 'change') renderSheetKeepScroll();
+      // maglia cambiata: avviso sotto la riga, senza ridisegnare
+      if (f === 'number' && r.orig != null) {
+        const rowEl = el.closest('.re-row');
+        let note = rowEl.querySelector('.re-note');
+        const n = el.value.trim();
+        if (n === r.orig) { if (note) note.remove(); }
+        else {
+          if (!note) { note = document.createElement('div'); note.className = 're-note'; rowEl.appendChild(note); }
+          note.textContent = `Maglia ${r.orig} → ${n || '?'}: i tocchi già registrati passano al nuovo numero`;
+        }
+      }
+      return;
+    }
     const c = el.dataset && el.dataset.c;
     if (!c) return;
     const v = el.type === 'checkbox' ? el.checked : el.value;

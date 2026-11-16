@@ -489,10 +489,49 @@
     };
   }
 
+  // Visita ogni punto degli eventi in cui compare un numero di maglia dei NOSTRI giocatori.
+  // fn(numero) restituisce il valore da scrivere al suo posto (o lo stesso numero).
+  function mapPlayerRefs(match, fn) {
+    const f = v => (v ? fn(v) : v);
+    const obj = o => { if (o) for (const k in o) o[k] = f(o[k]); };
+    for (const ev of match.events) {
+      switch (ev.type) {
+        case 'setStart':
+          obj(ev.lineup); obj(ev.slots);
+          if (ev.liberos) ev.liberos = ev.liberos.map(f);
+          break;
+        case 'touch':
+          if (ev.team === 'noi') ev.player = f(ev.player);
+          if (ev.receiver && ev.team === 'avv') ev.receiver.player = f(ev.receiver.player);
+          break;
+        case 'sub':
+          if (ev.team !== 'avv') { ev.in = f(ev.in); ev.out = f(ev.out); }
+          break;
+        case 'libero':
+          ev.num = f(ev.num);
+          break;
+      }
+    }
+  }
+
+  // Numeri dei nostri giocatori già usati nella partita (formazioni, tocchi, cambi, libero).
+  function usedPlayers(match) {
+    const used = new Set();
+    mapPlayerRefs(match, v => { used.add(v); return v; });
+    return used;
+  }
+
+  // Cambia i numeri di maglia in tutti gli eventi, tutti insieme (funziona anche
+  // se due giocatori si scambiano il numero). map = { vecchio: nuovo }.
+  function renumberPlayers(match, map) {
+    mapPlayerRefs(match, v => (Object.prototype.hasOwnProperty.call(map, v) ? map[v] : v));
+  }
+
   const api = {
     POS, FUNDS, FUND_ORDER, TEAMS, gradeInfo, rotateLineup, defaultRules,
     computeState, effectiveLineup, rotationName, suggestFund, computeStats,
     statRow, roleOf, isSetOver, setTarget, other, isMiddle, isSetter, isLibero, buildLineup, SLOT_SEQ,
+    usedPlayers, renumberPlayers,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Engine = api;

@@ -7,6 +7,15 @@
  */
 window.NOVITA = [
   {
+    v: 26, data: '2026-11-16', titolo: 'Rosa modificabile durante la partita e nuova grafica',
+    voci: [
+      'Hai sbagliato a inserire un giocatore? Ora puoi correggere la rosa anche a partita iniziata: Menu → Modifica rosa (oppure "Correggi la rosa" nella schermata della formazione).',
+      'Puoi cambiare maglia, nome e ruolo, aggiungere chi manca e togliere chi non ha ancora giocato. Se cambi un numero di maglia, tutto quello che hai già registrato passa al nuovo numero.',
+      'Con "Applica anche alla squadra salvata" la correzione vale anche per le prossime partite.',
+      'Grafica rinnovata: tabellone, campo con rete e linea dei 3 metri, pulsanti con icone, finestre e statistiche più ordinate.',
+    ],
+  },
+  {
     v: 25, data: '2026-11-15', titolo: 'Novità dopo ogni aggiornamento',
     voci: [
       'Dopo ogni aggiornamento compare questa finestra con le novità. La ritrovi in Menu → Novità e in fondo alla Home.',

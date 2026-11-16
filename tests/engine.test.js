@@ -296,6 +296,33 @@ test('cambio: chi entra prende il ruolo di chi esce fino a fine set', () => {
   [m, st] = save;
 });
 
+test('modifica rosa a partita iniziata: cambio numeri e giocatori usati', () => {
+  const r = roster.map(p => Object.assign({}, p)).concat([{ number: '20', name: 'Riserva', role: 'Opposto' }, { number: '21', name: 'Mai usato', role: 'Opposto' }]);
+  m = newMatch({ roster: r }); st = E.computeState(m);
+  push({ type: 'setStart', lineup, slots: { AL: '16', OP: '33' }, oppLineup: opp, liberos: ['87', '43'], liberoAuto: true, serve: 'avv' });
+  push({ type: 'touch', team: 'avv', pos: 'P1', player: 'P1', fund: 'B', grade: '#', receiver: { pos: 'P5', player: '35' } });
+  touch('noi', 'P1', 'R', '+');
+  push({ type: 'sub', team: 'noi', pos: 'P4', out: '33', in: '20' });
+  push({ type: 'libero', num: '43', auto: true });
+  const used = E.usedPlayers(m);
+  ['16', '33', '20', '35', '87', '43'].forEach(n => assert.ok(used.has(n), 'usato ' + n));
+  assert.ok(!used.has('21'), 'il 21 non ha mai giocato');
+  // scambio di maglia tra 16 e 33, e il 20 diventa 2
+  const before = E.computeStats(m, st, null).players.find(p => p.number === '16').recTot;
+  E.renumberPlayers(m, { 16: '33', 33: '16', 20: '2' });
+  m.roster.forEach(p => { p.number = { 16: '33', 33: '16', 20: '2' }[p.number] || p.number; });
+  st = E.computeState(m);
+  assert.strictEqual(m.events[0].lineup.P1, '33');
+  assert.strictEqual(m.events[0].lineup.P4, '16');
+  assert.strictEqual(m.events[0].slots.AL, '33');
+  assert.strictEqual(m.events[3].in, '2');
+  assert.strictEqual(m.events[3].out, '16');
+  assert.strictEqual(m.events[1].receiver.player, '35');
+  assert.strictEqual(E.computeStats(m, st, null).players.find(p => p.number === '33').recTot, before, 'le statistiche seguono il giocatore');
+  assert.strictEqual(before, 1);
+  assert.strictEqual(E.roleOf(m, '2', st), 'Opposto', 'chi entra prende il ruolo di chi esce');
+});
+
 test('xlsx valido', () => {
   const bytes = X.makeXlsx([
     { name: 'Prova', rows: [['A', 'B'], ['àèì <&>', 3.5], [null, -2]] },
